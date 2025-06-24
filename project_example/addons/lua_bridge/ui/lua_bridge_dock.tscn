@@ -1,0 +1,366 @@
+[gd_scene load_steps=2 format=3 uid="uid://bqxvn8y5qxqxr"]
+
+[ext_resource type="Script" path="res://addons/lua_bridge/ui/lua_bridge_dock.gd" id="1_0x8y6"]
+
+[node name="LuaBridgeDock" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_0x8y6")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 10.0
+offset_top = 10.0
+offset_right = -10.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+text = "Lua Bridge - Enhanced Features"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="TabContainer" type="TabContainer" parent="VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+current_tab = 0
+
+[node name="Mods" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="ModManagementLabel" type="Label" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+text = "Mod Management"
+
+[node name="LoadModsButton" type="Button" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+text = "Load Mods from Directory"
+
+[node name="LoadSpecificModButton" type="Button" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+text = "Load Specific Mod JSON"
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+
+[node name="ModListLabel" type="Label" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+text = "Loaded Mods:"
+
+[node name="ModList" type="ItemList" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ModControlHBox" type="HBoxContainer" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+
+[node name="EnableModButton" type="Button" parent="VBoxContainer/TabContainer/Mods/ModControlHBox"]
+layout_mode = 2
+text = "Enable Selected"
+
+[node name="DisableModButton" type="Button" parent="VBoxContainer/TabContainer/Mods/ModControlHBox"]
+layout_mode = 2
+text = "Disable Selected"
+
+[node name="UnloadModButton" type="Button" parent="VBoxContainer/TabContainer/Mods/ModControlHBox"]
+layout_mode = 2
+text = "Unload Selected"
+
+[node name="ReloadModButton" type="Button" parent="VBoxContainer/TabContainer/Mods/ModControlHBox"]
+layout_mode = 2
+text = "Reload Selected"
+
+[node name="Scripting" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="ScriptingLabel" type="Label" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Lua Scripting"
+
+[node name="ExecuteStringButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Execute Lua String"
+
+[node name="CallFunctionButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Call Lua Function"
+
+[node name="SetGlobalButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Set Global Variable"
+
+[node name="GetGlobalButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Get Global Variable"
+
+[node name="TestAllFeaturesButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Test All New Features"
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+
+[node name="CodeInputLabel" type="Label" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Lua Code:"
+
+[node name="CodeInput" type="TextEdit" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "print(\"Hello from Lua!\")
+local x = 10
+local y = 20
+print(\"Sum: \" .. (x + y))
+
+-- Define the advanced_calculation function first
+_G.advanced_calculation = function(base, multiplier, options)
+    local bonus = options.bonus or 0
+    local percentage = options.percentage or 0
+    local result = (base * multiplier) + bonus
+    result = result * (1 + percentage / 100)
+    return result
+end
+
+-- Test new features
+print(\"Testing new features...\")
+local result = _G.advanced_calculation(100, 1.5, {bonus = 25, percentage = 10})
+print(\"Advanced calculation result: \" .. result)"
+placeholder_text = "Enter Lua code here..."
+
+[node name="ExecuteCodeButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Execute Code"
+
+[node name="Lifecycle" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+
+[node name="LifecycleLabel" type="Label" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Lifecycle Hooks"
+
+[node name="CallInitButton" type="Button" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Call on_init()"
+
+[node name="CallReadyButton" type="Button" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Call on_ready()"
+
+[node name="CallExitButton" type="Button" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Call on_exit()"
+
+[node name="HSeparator4" type="HSeparator" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+
+[node name="AutoUpdateCheckBox" type="CheckBox" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Auto Update (call on_update every frame)"
+
+[node name="Security" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 3
+
+[node name="SecurityLabel" type="Label" parent="VBoxContainer/TabContainer/Security"]
+layout_mode = 2
+text = "Security & Sandboxing"
+
+[node name="ToggleSandboxButton" type="Button" parent="VBoxContainer/TabContainer/Security"]
+layout_mode = 2
+text = "Toggle Sandbox Mode"
+
+[node name="TestUnsafeCodeButton" type="Button" parent="VBoxContainer/TabContainer/Security"]
+layout_mode = 2
+text = "Test Unsafe Code"
+
+[node name="HSeparator5" type="HSeparator" parent="VBoxContainer/TabContainer/Security"]
+layout_mode = 2
+
+[node name="SandboxStatusLabel" type="Label" parent="VBoxContainer/TabContainer/Security"]
+layout_mode = 2
+text = "Sandbox Status: ENABLED"
+
+[node name="SafeCasting" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 4
+
+[node name="SafeCastingLabel" type="Label" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+text = "Safe Casting & Wrappers"
+
+[node name="TestSafeCastingButton" type="Button" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+text = "Test Safe Casting"
+
+[node name="TestWrappersButton" type="Button" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+text = "Test Object Wrappers"
+
+[node name="TestTypeCheckingButton" type="Button" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+text = "Test Type Checking"
+
+[node name="HSeparator6" type="HSeparator" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+
+[node name="WrapperInfoLabel" type="Label" parent="VBoxContainer/TabContainer/SafeCasting"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Wrapper Info:"
+
+[node name="GodotObjects" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 5
+
+[node name="GodotObjectsLabel" type="Label" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+text = "Godot Object Access"
+
+[node name="TestGetNodeButton" type="Button" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+text = "Test get_node()"
+
+[node name="TestGetChildrenButton" type="Button" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+text = "Test get_children()"
+
+[node name="TestPropertyAccessButton" type="Button" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+text = "Test Property Access"
+
+[node name="TestMethodCallButton" type="Button" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+text = "Test Method Calls"
+
+[node name="HSeparator7" type="HSeparator" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+
+[node name="ObjectInfoLabel" type="Label" parent="VBoxContainer/TabContainer/GodotObjects"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Object Info:"
+
+[node name="Resources" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 6
+
+[node name="ResourcesLabel" type="Label" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+text = "Resource & Scene Management"
+
+[node name="TestLoadResourceButton" type="Button" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+text = "Test load_resource()"
+
+[node name="TestInstanceSceneButton" type="Button" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+text = "Test instance_scene()"
+
+[node name="TestResourceWrapperButton" type="Button" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+text = "Test Resource Wrappers"
+
+[node name="HSeparator8" type="HSeparator" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+
+[node name="ResourceInfoLabel" type="Label" parent="VBoxContainer/TabContainer/Resources"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Resource Info:"
+
+[node name="Events" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 7
+
+[node name="EventsLabel" type="Label" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+text = "Events & Signals"
+
+[node name="TestEmitEventButton" type="Button" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+text = "Test emit_event()"
+
+[node name="TestSubscribeEventButton" type="Button" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+text = "Test subscribe_event()"
+
+[node name="TestSignalConnectionButton" type="Button" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+text = "Test Signal Connection"
+
+[node name="HSeparator9" type="HSeparator" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+
+[node name="EventInfoLabel" type="Label" parent="VBoxContainer/TabContainer/Events"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Event Info:"
+
+[node name="Coroutines" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 8
+
+[node name="CoroutinesLabel" type="Label" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+text = "Coroutines"
+
+[node name="TestCreateCoroutineButton" type="Button" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+text = "Test create_coroutine()"
+
+[node name="TestResumeCoroutineButton" type="Button" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+text = "Test resume_coroutine()"
+
+[node name="TestCoroutineStatusButton" type="Button" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+text = "Test Coroutine Status"
+
+[node name="HSeparator10" type="HSeparator" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+
+[node name="CoroutineInfoLabel" type="Label" parent="VBoxContainer/TabContainer/Coroutines"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Coroutine Info:"
+
+[node name="Output" type="VBoxContainer" parent="VBoxContainer/TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 9
+
+[node name="OutputLabel" type="Label" parent="VBoxContainer/TabContainer/Output"]
+layout_mode = 2
+text = "Output:"
+
+[node name="OutputTextEdit" type="TextEdit" parent="VBoxContainer/TabContainer/Output"]
+layout_mode = 2
+size_flags_vertical = 3
+placeholder_text = "Lua output will appear here..."
+editable = false
+
+[node name="ClearOutputButton" type="Button" parent="VBoxContainer/TabContainer/Output"]
+layout_mode = 2
+text = "Clear Output"

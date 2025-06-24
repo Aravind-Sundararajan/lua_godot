@@ -32,6 +32,11 @@ if env["platform"] == "windows":
         source=sources,
         LIBS=[lua_lib, "godot-cpp/bin/libgodot-cpp.windows.template_debug.x86_64"]
     )
+
+    # Define the target filename for the addon
+    target_filename = "lua_bridge.windows.template_debug.x86_64.dll"
+    target_dir = "project_example/addons/lua_bridge/bin/windows"
+
 elif env["platform"] == "macos":
     library = env.SharedLibrary(
         "libluabridge.{}.{}.framework/libluabridge.{}.{}".format(
@@ -40,6 +45,11 @@ elif env["platform"] == "macos":
         source=sources,
         LIBS=[lua_lib, 'godot-cpp']
     )
+
+    # Define the target filename for the addon
+    target_filename = "lua_bridge.macos.template_debug.framework"
+    target_dir = "project_example/addons/lua_bridge/bin/macos"
+
 elif env["platform"] == "ios":
     if env["ios_simulator"]:
         library = env.StaticLibrary(
@@ -62,4 +72,45 @@ else:
         LIBS=[lua_lib, 'godot-cpp']
     )
 
-Default(library)
+    # Define the target filename for the addon (Linux)
+    target_filename = "lua_bridge.linux.template_debug.x86_64.so"
+    target_dir = "project_example/addons/lua_bridge/bin/linux"
+
+# Function to copy the built library to the addon directory
+
+
+def copy_to_addon(target, source, env):
+    # Create target directory if it doesn't exist
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Get the built library path
+    built_library = str(source[0])
+
+    # Copy to the addon directory
+    target_path = os.path.join(target_dir, target_filename)
+    shutil.copy2(built_library, target_path)
+
+    print(f"Copied {built_library} to {target_path}")
+
+    # Also copy to the root directory for backward compatibility
+    root_target = f"lua_bridge.dll" if env[
+        "platform"] == "windows" else f"lua_bridge{env['SHLIBSUFFIX']}"
+    shutil.copy2(built_library, root_target)
+    print(f"Copied {built_library} to {root_target}")
+
+
+# Create a custom target that copies the library after building
+if env["platform"] in ["windows", "linux", "macos"]:
+    copy_target = env.Command(
+        target_dir + "/" + target_filename,
+        library,
+        copy_to_addon
+    )
+
+    # Make the copy target depend on the library
+    env.Depends(copy_target, library)
+
+    # Add the copy target to the default targets
+    Default(copy_target)
+else:
+    Default(library)

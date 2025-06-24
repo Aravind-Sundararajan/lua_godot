@@ -9,9 +9,17 @@ if (-not (Test-Path "..\lua_bridge.dll")) {
     exit 1
 }
 
-# Copy the extension DLL
+# Create platform directories if they don't exist
+$platformDirs = @("addons\lua_bridge\bin\windows", "addons\lua_bridge\bin\linux", "addons\lua_bridge\bin\macos")
+foreach ($dir in $platformDirs) {
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+}
+
+# Copy the extension DLL to the correct platform directory
 Write-Host "Copying extension DLL..." -ForegroundColor Cyan
-Copy-Item "..\lua_bridge.dll" "bin\lua_bridge.windows.template_debug.x86_64.dll" -Force
+Copy-Item "..\lua_bridge.dll" "addons\lua_bridge\bin\windows\lua_bridge.windows.template_debug.x86_64.dll" -Force
 
 # Check if example mod exists
 if (-not (Test-Path "..\example_mod")) {
@@ -26,7 +34,8 @@ Write-Host "Setup complete! You can now open this project in Godot 4.3+" -Foregr
 Write-Host ""
 Write-Host "To test the modding system:" -ForegroundColor Cyan
 Write-Host "1. Open project_example folder in Godot" -ForegroundColor White
-Write-Host "2. Run the project (F5)" -ForegroundColor White
-Write-Host "3. Use the UI buttons to test different features" -ForegroundColor White
+Write-Host "2. Enable the Lua Bridge plugin in Project Settings → Plugins" -ForegroundColor White
+Write-Host "3. The Lua Bridge dock will appear in the editor" -ForegroundColor White
+Write-Host "4. Use the dock to test all features" -ForegroundColor White
 Write-Host ""
 Read-Host "Press Enter to continue" 

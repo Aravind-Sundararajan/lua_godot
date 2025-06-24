@@ -7,6 +7,8 @@ layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_0x8y5")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="."]
@@ -18,133 +20,273 @@ offset_left = 20.0
 offset_top = 20.0
 offset_right = -20.0
 offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
 
 [node name="Title" type="Label" parent="VBoxContainer"]
 layout_mode = 2
-text = "Lua Modding System Demo"
+text = "Lua Modding System Demo - Enhanced Features"
 horizontal_alignment = 1
 
 [node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
 layout_mode = 2
 
-[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer"]
+[node name="ScrollContainer" type="ScrollContainer" parent="VBoxContainer"]
 layout_mode = 2
+size_flags_vertical = 3
 
-[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/HBoxContainer"]
+[node name="MainContent" type="VBoxContainer" parent="VBoxContainer/ScrollContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ModManagementLabel" type="Label" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent"]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ModManagementLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 text = "Mod Management"
 
-[node name="LoadModsButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="LoadModsButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 text = "Load Mods from Directory"
 
-[node name="LoadSpecificModButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="LoadSpecificModButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 text = "Load Specific Mod JSON"
 
-[node name="EnableModButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="EnableModButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 text = "Enable ExampleMod"
 
-[node name="DisableModButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="DisableModButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 text = "Disable ExampleMod"
 
-[node name="HSeparator2" type="HSeparator" parent="VBoxContainer/HBoxContainer/VBoxContainer"]
+[node name="ReloadModButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
+layout_mode = 2
+text = "Reload ExampleMod"
+
+[node name="HSeparator2" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer"]
 layout_mode = 2
 
-[node name="VBoxContainer2" type="VBoxContainer" parent="VBoxContainer/HBoxContainer"]
+[node name="VBoxContainer2" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="ScriptingLabel" type="Label" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="ScriptingLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 text = "Lua Scripting"
 
-[node name="ExecuteStringButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="ExecuteStringButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 text = "Execute Lua String"
 
-[node name="CallFunctionButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="CallFunctionButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 text = "Call Lua Function"
 
-[node name="SetGlobalButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="SetGlobalButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 text = "Set Global Variable"
 
-[node name="GetGlobalButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="GetGlobalButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 text = "Get Global Variable"
 
-[node name="HSeparator3" type="HSeparator" parent="VBoxContainer/HBoxContainer/VBoxContainer2"]
+[node name="TestAllFeaturesButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
+layout_mode = 2
+text = "Test All New Features"
+
+[node name="HSeparator3" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2"]
 layout_mode = 2
 
-[node name="VBoxContainer3" type="VBoxContainer" parent="VBoxContainer/HBoxContainer"]
+[node name="VBoxContainer3" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="LifecycleLabel" type="Label" parent="VBoxContainer/HBoxContainer/VBoxContainer3"]
+[node name="LifecycleLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3"]
 layout_mode = 2
 text = "Lifecycle Hooks"
 
-[node name="CallInitButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer3"]
+[node name="CallInitButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3"]
 layout_mode = 2
 text = "Call on_init()"
 
-[node name="CallReadyButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer3"]
+[node name="CallReadyButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3"]
 layout_mode = 2
 text = "Call on_ready()"
 
-[node name="CallExitButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer3"]
+[node name="CallExitButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3"]
 layout_mode = 2
 text = "Call on_exit()"
 
-[node name="HSeparator4" type="HSeparator" parent="VBoxContainer/HBoxContainer/VBoxContainer3"]
+[node name="HSeparator4" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3"]
 layout_mode = 2
 
-[node name="VBoxContainer4" type="VBoxContainer" parent="VBoxContainer/HBoxContainer"]
+[node name="VBoxContainer4" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="SandboxingLabel" type="Label" parent="VBoxContainer/HBoxContainer/VBoxContainer4"]
+[node name="SandboxingLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer4"]
 layout_mode = 2
 text = "Security & Sandboxing"
 
-[node name="ToggleSandboxButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer4"]
+[node name="ToggleSandboxButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer4"]
 layout_mode = 2
 text = "Toggle Sandbox Mode"
 
-[node name="TestUnsafeCodeButton" type="Button" parent="VBoxContainer/HBoxContainer/VBoxContainer4"]
+[node name="TestUnsafeCodeButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer4"]
 layout_mode = 2
 text = "Test Unsafe Code"
 
-[node name="HSeparator5" type="HSeparator" parent="VBoxContainer"]
+[node name="HSeparator5" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 
-[node name="OutputLabel" type="Label" parent="VBoxContainer"]
+[node name="NewFeaturesHBox" type="HBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent"]
+layout_mode = 2
+
+[node name="VBoxContainer5" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SafeCastingLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5"]
+layout_mode = 2
+text = "Safe Casting & Wrappers"
+
+[node name="TestSafeCastingButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5"]
+layout_mode = 2
+text = "Test Safe Casting"
+
+[node name="TestWrappersButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5"]
+layout_mode = 2
+text = "Test Object Wrappers"
+
+[node name="TestTypeCheckingButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5"]
+layout_mode = 2
+text = "Test Type Checking"
+
+[node name="HSeparator6" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5"]
+layout_mode = 2
+
+[node name="VBoxContainer6" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GodotObjectsLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+text = "Godot Object Access"
+
+[node name="TestGetNodeButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+text = "Test get_node()"
+
+[node name="TestGetChildrenButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+text = "Test get_children()"
+
+[node name="TestPropertyAccessButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+text = "Test Property Access"
+
+[node name="TestMethodCallButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+text = "Test Method Calls"
+
+[node name="HSeparator7" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6"]
+layout_mode = 2
+
+[node name="VBoxContainer7" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ResourceManagementLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7"]
+layout_mode = 2
+text = "Resource & Scene Management"
+
+[node name="TestLoadResourceButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7"]
+layout_mode = 2
+text = "Test load_resource()"
+
+[node name="TestInstanceSceneButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7"]
+layout_mode = 2
+text = "Test instance_scene()"
+
+[node name="TestResourceWrapperButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7"]
+layout_mode = 2
+text = "Test Resource Wrappers"
+
+[node name="HSeparator8" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7"]
+layout_mode = 2
+
+[node name="VBoxContainer8" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EventsAndSignalsLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8"]
+layout_mode = 2
+text = "Events & Signals"
+
+[node name="TestEmitEventButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8"]
+layout_mode = 2
+text = "Test emit_event()"
+
+[node name="TestSubscribeEventButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8"]
+layout_mode = 2
+text = "Test subscribe_event()"
+
+[node name="TestSignalConnectionButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8"]
+layout_mode = 2
+text = "Test Signal Connection"
+
+[node name="HSeparator9" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8"]
+layout_mode = 2
+
+[node name="VBoxContainer9" type="VBoxContainer" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CoroutinesLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9"]
+layout_mode = 2
+text = "Coroutines"
+
+[node name="TestCreateCoroutineButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9"]
+layout_mode = 2
+text = "Test create_coroutine()"
+
+[node name="TestResumeCoroutineButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9"]
+layout_mode = 2
+text = "Test resume_coroutine()"
+
+[node name="TestCoroutineStatusButton" type="Button" parent="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9"]
+layout_mode = 2
+text = "Test Coroutine Status"
+
+[node name="HSeparator10" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent"]
+layout_mode = 2
+
+[node name="OutputLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 text = "Output:"
 
-[node name="OutputTextEdit" type="TextEdit" parent="VBoxContainer"]
+[node name="OutputTextEdit" type="TextEdit" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 size_flags_vertical = 3
 placeholder_text = "Lua output will appear here..."
 editable = false
 
-[node name="HSeparator6" type="HSeparator" parent="VBoxContainer"]
+[node name="HSeparator11" type="HSeparator" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 
-[node name="ModInfoLabel" type="Label" parent="VBoxContainer"]
+[node name="ModInfoLabel" type="Label" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 text = "Mod Information:"
 
-[node name="ModInfoTextEdit" type="TextEdit" parent="VBoxContainer"]
+[node name="ModInfoTextEdit" type="TextEdit" parent="VBoxContainer/ScrollContainer/MainContent"]
 layout_mode = 2
 size_flags_vertical = 3
 placeholder_text = "Mod information will appear here..."
-editable = false 
+editable = false

@@ -1,0 +1,12 @@
+{
+    "name": "ExampleMod",
+    "version": "1.0.0",
+    "author": "Example Author",
+    "description": "An example mod that demonstrates the Lua modding system",
+    "entry_script": "main.lua",
+    "enabled": true,
+    "dependencies": [],
+    "tags": ["example", "demo"],
+    "website": "https://example.com/mod",
+    "license": "MIT"
+} 
