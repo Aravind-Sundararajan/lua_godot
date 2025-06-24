@@ -1,0 +1,13 @@
+[configuration]
+
+entry_symbol = "gdext_initialize"
+compatibility_minimum = "4.3"
+
+[libraries]
+
+windows.debug.x86_64 = "res://bin/lua_bridge.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/lua_bridge.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://bin/lua_bridge.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/lua_bridge.linux.template_release.x86_64.so"
+macos.debug = "res://bin/lua_bridge.macos.template_debug.framework"
+macos.release = "res://bin/lua_bridge.macos.template_release.framework" 
