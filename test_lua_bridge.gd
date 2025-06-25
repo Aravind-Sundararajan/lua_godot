@@ -28,6 +28,9 @@ func _ready():
     
     # Test JSON mod management
     test_json_mod_management()
+    
+    # Test function registration
+    test_function_registration()
 
 func test_basic_operations():
     print("\n=== Testing Basic Operations ===")
@@ -162,6 +165,42 @@ func test_json_mod_management():
     # Test loading a specific mod JSON file
     var json_success = lua_bridge.load_mod_from_json("example_mod/mod.json")
     print("Direct JSON loading success: ", json_success)
+
+func test_function_registration():
+    print("\n=== Testing Function Registration ===")
+    
+    # Register a simple function that returns a string
+    lua_bridge.register_function("godot_hello", func(args):
+        print("Godot function called with arguments: ", args)
+        return "Hello from Godot!"
+    )
+    
+    # Register a function that adds numbers
+    lua_bridge.register_function("godot_add", func(args):
+        if args.size() >= 2:
+            var a = args[0]
+            var b = args[1]
+            if typeof(a) == TYPE_INT or typeof(a) == TYPE_FLOAT:
+                if typeof(b) == TYPE_INT or typeof(b) == TYPE_FLOAT:
+                    return a + b
+        return 0
+    )
+    
+    # Call the registered functions from Lua
+    lua_bridge.exec_string("print('Calling godot_hello(): ', godot_hello())")
+    lua_bridge.exec_string("print('Calling godot_add(5, 3): ', godot_add(5, 3))")
+    lua_bridge.exec_string("print('Calling godot_add(10.5, 2.5): ', godot_add(10.5, 2.5))")
+    
+    # Test calling with arguments
+    lua_bridge.exec_string("result = godot_add(100, 200)")
+    var result = lua_bridge.get_global("result")
+    print("Result from Lua: ", result)
+    
+    # Test error handling for non-existent function
+    lua_bridge.exec_string("print('Trying to call non-existent function...')")
+    lua_bridge.exec_string("non_existent()")  # This should cause an error
+    var last_error = lua_bridge.get_last_error()
+    print("Error for non-existent function: ", last_error)
 
 func _process(delta):
     # Call update hook every frame

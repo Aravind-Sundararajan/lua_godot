@@ -318,9 +318,28 @@ Variant LuaBridge::call_function(String func_name, Array args) {
 }
 
 void LuaBridge::register_function(String name, Callable cb) {
-	// This is a placeholder for registering Godot functions with Lua
-	// Implementation would require more complex callback handling
-	print_to_console("Function registration not yet implemented: " + name);
+	if (!L) {
+		log_error("Cannot register function: Lua state not initialized");
+		return;
+	}
+	
+	if (name.is_empty()) {
+		log_error("Cannot register function: Empty function name");
+		return;
+	}
+	
+	// Store the callable for later use
+	registered_functions[name] = cb;
+	
+	// Create a closure that captures the bridge instance and function name
+	lua_pushlightuserdata(L, this);
+	lua_pushstring(L, name.utf8().get_data());
+	lua_pushcclosure(L, lua_call_godot_function, 2);
+	
+	// Register it as a global function
+	lua_setglobal(L, name.utf8().get_data());
+	
+	print_to_console("Registered Godot function: " + name);
 }
 
 // Type checking and validation
@@ -1120,4 +1139,80 @@ bool LuaBridge::is_coroutine_active(String name) const {
 void LuaBridge::cleanup_coroutines() {
 	active_coroutines.clear();
 	print_to_console("cleanup_coroutines: Cleared all active coroutines");
+}
+
+// Static function to call Godot functions from Lua
+int LuaBridge::lua_call_godot_function(lua_State* L) {
+	// Upvalue 1: LuaBridge*
+	LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
+	if (!bridge) {
+		lua_pushstring(L, "[LuaBridge] lua_call_godot_function: No bridge context");
+		lua_error(L);
+		return 0;
+	}
+	
+	// Upvalue 2: function name
+	const char* func_name = lua_tostring(L, lua_upvalueindex(2));
+	if (!func_name) {
+		lua_pushstring(L, "[LuaBridge] lua_call_godot_function: No function name");
+		lua_error(L);
+		return 0;
+	}
+	
+	String name = String(func_name);
+	
+	// Find the registered function
+	auto it = bridge->registered_functions.find(name);
+	if (it == bridge->registered_functions.end()) {
+		lua_pushfstring(L, "[LuaBridge] lua_call_godot_function: Function not found: %s", func_name);
+		lua_error(L);
+		return 0;
+	}
+	
+	Callable& callable = it->second;
+	
+	// Convert Lua arguments to Godot Array
+	Array args;
+	int num_args = lua_gettop(L);
+	
+	for (int i = 1; i <= num_args; i++) {
+		if (lua_isstring(L, i)) {
+			args.append(String(lua_tostring(L, i)));
+		} else if (lua_isnumber(L, i)) {
+			args.append(lua_tonumber(L, i));
+		} else if (lua_isboolean(L, i)) {
+			args.append((bool)lua_toboolean(L, i));
+		} else if (lua_isnil(L, i)) {
+			args.append(Variant());
+		} else {
+			// For other types, we'll pass nil for now
+			// In a full implementation, you'd want to handle tables, userdata, etc.
+			args.append(Variant());
+		}
+	}
+	
+	// Call the Godot function
+	Variant result;
+	try {
+		result = callable.callv(args);
+	} catch (...) {
+		lua_pushfstring(L, "[LuaBridge] lua_call_godot_function: Exception in function: %s", func_name);
+		lua_error(L);
+		return 0;
+	}
+	
+	// Convert result back to Lua
+	if (result.get_type() == Variant::Type::STRING) {
+		lua_pushstring(L, ((String)result).utf8().get_data());
+	} else if (result.get_type() == Variant::Type::INT) {
+		lua_pushinteger(L, (int)result);
+	} else if (result.get_type() == Variant::Type::FLOAT) {
+		lua_pushnumber(L, (double)result);
+	} else if (result.get_type() == Variant::Type::BOOL) {
+		lua_pushboolean(L, (bool)result);
+	} else {
+		lua_pushnil(L);
+	}
+	
+	return 1; // Return one value
 }

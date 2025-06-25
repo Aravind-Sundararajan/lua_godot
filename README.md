@@ -226,6 +226,75 @@ func _exit_tree():
     lua_bridge.unload()
 ```
 
+### Function Registration
+
+The Lua Bridge allows you to register Godot functions as global Lua functions, enabling Lua scripts to call back into your Godot code:
+
+```gdscript
+# Register a simple function
+lua_bridge.register_function("godot_hello", func(args):
+    print("Hello from Godot!")
+    return "Hello from Godot!"
+)
+
+# Register a function that processes arguments
+lua_bridge.register_function("godot_add", func(args):
+    if args.size() >= 2:
+        var a = args[0]
+        var b = args[1]
+        if typeof(a) == TYPE_INT or typeof(a) == TYPE_FLOAT:
+            if typeof(b) == TYPE_INT or typeof(b) == TYPE_FLOAT:
+                return a + b
+    return 0
+)
+
+# Register a function that accesses game state
+lua_bridge.register_function("get_player_health", func(args):
+    return player.health
+)
+
+lua_bridge.register_function("set_player_health", func(args):
+    if args.size() >= 1:
+        var new_health = args[0]
+        if typeof(new_health) == TYPE_INT or typeof(new_health) == TYPE_FLOAT:
+            player.health = new_health
+            return true
+    return false
+)
+```
+
+Now Lua scripts can call these functions directly:
+
+```lua
+-- Call the registered functions
+print(godot_hello())  -- Prints: Hello from Godot!
+
+local result = godot_add(5, 3)
+print(result)  -- Prints: 8
+
+local health = get_player_health()
+print("Player health:", health)
+
+set_player_health(100)
+```
+
+**Supported Argument Types:**
+- **Strings**: Passed as Godot String
+- **Numbers**: Passed as Godot float/int
+- **Booleans**: Passed as Godot bool
+- **Nil**: Passed as Godot Variant()
+
+**Return Value Types:**
+- **String**: Returned as Lua string
+- **Number**: Returned as Lua number
+- **Boolean**: Returned as Lua boolean
+- **Other types**: Returned as Lua nil
+
+**Error Handling:**
+- If a registered function throws an exception, it will be caught and reported as a Lua error
+- Invalid function names or missing functions will cause Lua errors
+- The bridge provides detailed error messages for debugging
+
 ## Mod Development
 
 ### Mod Structure

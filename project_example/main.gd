@@ -54,8 +54,26 @@ func _ready():
 	append_output("Lua Bridge initialized successfully!")
 	append_output("Enhanced features available: Safe casting, Godot objects, signals, events, coroutines!")
 	
-	# Load the example mod
+	# Load the base game mod and other mods
+	_load_base_game_mod()
 	_load_example_mod()
+	
+	# Call init hooks for all loaded mods
+	lua_bridge.call_on_init()
+	
+	# Call ready hooks for all loaded mods
+	lua_bridge.call_on_ready()
+	
+	update_mod_info()
+
+func _load_base_game_mod():
+	append_output("Loading base game mod...")
+	var success = lua_bridge.load_mod_from_json("res://mods/base_game/mod.json")
+	if success:
+		append_output("Base game mod loaded successfully!")
+		lua_bridge.enable_mod("BaseGame")
+	else:
+		append_output("Failed to load base game mod!")
 
 func _load_example_mod():
 	# Copy the example mod to the project directory if it doesn't exist
@@ -158,22 +176,18 @@ print("Simple calculation: " .. simple_calc(5, 3))
 _G.test_global = "Hello from Lua global!"
 print("Set global variable: test_global")
 
--- Define the advanced_calculation function in global scope
-_G.advanced_calculation = function(base, multiplier, options)
-    local bonus = options.bonus or 0
-    local percentage = options.percentage or 0
-    local result = (base * multiplier) + bonus
-    result = result * (1 + percentage / 100)
-    return result
-end
-print("Defined advanced_calculation function")
+-- Test base game functions (now available from the BaseGame mod)
+print("Testing base game functions...")
+local player_health = get_player_health()
+print("Player health: " .. player_health)
 
--- Test new features
-print("Testing new features...")
-local result = _G.advanced_calculation(100, 1.5, {bonus = 25, percentage = 10})
+local damage = calculate_damage(100, 1.5, 0.2)
+print("Damage calculation: " .. damage)
+
+local result = advanced_calculation(100, 1.5, {bonus = 25, percentage = 10})
 print("Advanced calculation result: " .. result)
 
-return "Lua execution completed with new features!"
+return "Lua execution completed with base game features!"
 """
 	lua_bridge.exec_string(lua_code)
 
@@ -203,7 +217,8 @@ func _on_get_global_button_pressed():
 
 func _on_test_all_features_button_pressed():
 	append_output("Testing all new features...")
-	lua_bridge.call_function("test_all_features", Array())
+	var result = lua_bridge.call_function("test_all_features", Array())
+	append_output("Test result: " + str(result))
 
 # Lifecycle Functions
 func _on_call_init_button_pressed():

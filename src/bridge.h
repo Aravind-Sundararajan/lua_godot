@@ -55,11 +55,17 @@ private:
     // Coroutine support
     std::map<String, lua_State*> active_coroutines;
 
+    // Registered Godot functions
+    std::map<String, Callable> registered_functions;
+
     // Custom require handler
     static int lua_require_mod(lua_State* L);
     void setup_require_handler();
     // Stack trace helper
     String get_lua_stack_trace();
+    
+    // Godot function call handler
+    static int lua_call_godot_function(lua_State* L);
 
 protected:
     static void _bind_methods();
@@ -124,7 +130,7 @@ public:
      */
     Variant call_function(String func_name, Array args);
     /**
-     * Registers a Godot Callable as a Lua function (not yet implemented).
+     * Registers a Godot Callable as a Lua function.
      * @param name The function name.
      * @param cb The Callable to register.
      */

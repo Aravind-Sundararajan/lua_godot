@@ -1,0 +1,10 @@
+{
+    "name": "BaseGame",
+    "version": "1.0.0",
+    "author": "Game Developer",
+    "description": "The base game functionality implemented as a mod",
+    "main": "main.lua",
+    "dependencies": [],
+    "enabled": true,
+    "priority": 1000
+} 
