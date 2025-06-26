@@ -7,24 +7,27 @@ func _ready():
 	if ClassDB.class_exists("LuaBridge"):
 		print("✓ LuaBridge class found!")
 		
-		# Try to create an instance
-		var lua_bridge = LuaBridge.new()
-		if lua_bridge:
-			print("✓ LuaBridge instance created successfully!")
+		# Use LuaBridgeManager instead of direct instantiation
+		if not LuaBridgeManager.is_bridge_ready():
+			print("Initializing LuaBridge through manager...")
+			LuaBridgeManager.initialize_bridge()
+		
+		if LuaBridgeManager.is_bridge_ready():
+			print("✓ LuaBridge initialized through manager!")
 			
 			# Test basic functionality
-			lua_bridge.setup_safe_environment()
+			LuaBridgeManager.set_sandboxed(true)
 			print("✓ Safe environment setup completed!")
 			
 			# Test Lua execution
-			lua_bridge.exec_string("print('Hello from Lua!')")
+			LuaBridgeManager.execute_lua("print('Hello from Lua!')")
 			print("✓ Lua execution test completed!")
 			
 			# Cleanup
-			lua_bridge.unload()
+			LuaBridgeManager.unload_bridge()
 			print("✓ Cleanup completed!")
 		else:
-			print("✗ Failed to create LuaBridge instance")
+			print("✗ Failed to initialize LuaBridge through manager")
 	else:
 		print("✗ LuaBridge class not found!")
 		print("Make sure the extension is properly loaded and the plugin is enabled.")

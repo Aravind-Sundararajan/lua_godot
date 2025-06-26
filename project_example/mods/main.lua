@@ -53,6 +53,8 @@ function on_ready()
     
     -- Start a background coroutine
     start_background_task()
+    -- Test autoload singleton
+    test_autoload_singleton()
 end
 
 function on_update(delta)
@@ -284,6 +286,45 @@ function test_all_features()
     print("[" .. mod_name .. "] Advanced calculation test result: " .. result)
     
     print("[" .. mod_name .. "] All features tested!")
+end
+
+function test_autoload_singleton()
+    print("[" .. mod_name .. "] Testing TestAutoload singleton from Lua...")
+    local test_autoload = get_autoload_singleton("TestAutoload")
+    if test_autoload then
+        -- Get player info
+        local player_info = test_autoload:get_player_info()
+        print("[" .. mod_name .. "] Player info from TestAutoload: " .. tostring(player_info))
+
+        -- Set player name
+        test_autoload:set_player_name("LuaPlayer")
+        print("[" .. mod_name .. "] Set player name to LuaPlayer")
+
+        -- Add score
+        test_autoload:add_score(123)
+        print("[" .. mod_name .. "] Added 123 to player score")
+
+        -- Get updated info
+        local updated_info = test_autoload:get_player_info()
+        print("[" .. mod_name .. "] Updated player info: " .. tostring(updated_info))
+
+        -- Call utility methods
+        local random_num = test_autoload:get_random_number(1, 100)
+        print("[" .. mod_name .. "] Random number from TestAutoload: " .. tostring(random_num))
+
+        local damage = test_autoload:calculate_damage(50, 2, 0.1)
+        print("[" .. mod_name .. "] Damage calculation from TestAutoload: " .. tostring(damage))
+
+        -- Start and stop game
+        test_autoload:start_game()
+        print("[" .. mod_name .. "] Started game via TestAutoload")
+        test_autoload:stop_game()
+        print("[" .. mod_name .. "] Stopped game via TestAutoload")
+        test_autoload:reset_game()
+        print("[" .. mod_name .. "] Reset game via TestAutoload")
+    else
+        print("[" .. mod_name .. "] Could not get TestAutoload singleton!")
+    end
 end
 
 print("[" .. mod_name .. "] Script loaded successfully from JSON mod!")

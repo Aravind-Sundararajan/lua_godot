@@ -1,0 +1,5 @@
+{
+    "name": "SimpleTestMod",
+    "entry_script": "simple_test.lua",
+    "enabled": true
+} 

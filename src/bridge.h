@@ -165,7 +165,7 @@ public:
      * @param class_name The class name to check.
      * @return A wrapper dictionary, or Variant() on error.
      */
-    Variant create_wrapper(Variant obj, String class_name);
+    Variant create_wrapper(Variant obj, String class_name) const;
     /**
      * Checks if a Variant is a wrapper created by create_wrapper().
      * @param obj The object to check.
@@ -355,6 +355,12 @@ public:
      * @return An array of child nodes.
      */
     Array get_children(Variant obj) const;
+    /**
+     * Gets an autoload singleton by name.
+     * @param singleton_name The autoload singleton name.
+     * @return The singleton object, or Variant() if not found.
+     */
+    Variant get_autoload_singleton(String singleton_name) const;
     /**
      * Loads a Godot resource (scene, texture, etc.) from a path.
      * @param path The resource path.

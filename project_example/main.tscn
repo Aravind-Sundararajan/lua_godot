@@ -16,10 +16,6 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 20.0
-offset_top = 20.0
-offset_right = -20.0
-offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -273,6 +269,7 @@ layout_mode = 2
 text = "Output:"
 
 [node name="OutputTextEdit" type="TextEdit" parent="VBoxContainer/ScrollContainer/MainContent"]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 placeholder_text = "Lua output will appear here..."
@@ -286,7 +283,40 @@ layout_mode = 2
 text = "Mod Information:"
 
 [node name="ModInfoTextEdit" type="TextEdit" parent="VBoxContainer/ScrollContainer/MainContent"]
+custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 placeholder_text = "Mod information will appear here..."
 editable = false
+
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer/LoadModsButton" to="." method="_on_LoadModsButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer/LoadSpecificModButton" to="." method="_on_LoadSpecificModButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer/EnableModButton" to="." method="_on_EnableModButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer/DisableModButton" to="." method="_on_DisableModButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer/ReloadModButton" to="." method="_on_ReloadModButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2/ExecuteStringButton" to="." method="_on_ExecuteStringButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2/CallFunctionButton" to="." method="_on_CallFunctionButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2/SetGlobalButton" to="." method="_on_SetGlobalButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2/GetGlobalButton" to="." method="_on_GetGlobalButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer2/TestAllFeaturesButton" to="." method="_on_TestAllFeaturesButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3/CallInitButton" to="." method="_on_CallInitButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3/CallReadyButton" to="." method="_on_CallReadyButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer3/CallExitButton" to="." method="_on_CallExitButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer4/ToggleSandboxButton" to="." method="_on_ToggleSandboxButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/HBoxContainer/VBoxContainer4/TestUnsafeCodeButton" to="." method="_on_TestUnsafeCodeButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5/TestSafeCastingButton" to="." method="_on_TestSafeCastingButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5/TestWrappersButton" to="." method="_on_TestWrappersButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer5/TestTypeCheckingButton" to="." method="_on_TestTypeCheckingButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6/TestGetNodeButton" to="." method="_on_TestGetNodeButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6/TestGetChildrenButton" to="." method="_on_TestGetChildrenButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6/TestPropertyAccessButton" to="." method="_on_TestPropertyAccessButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer6/TestMethodCallButton" to="." method="_on_TestMethodCallButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7/TestLoadResourceButton" to="." method="_on_TestLoadResourceButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7/TestInstanceSceneButton" to="." method="_on_TestInstanceSceneButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer7/TestResourceWrapperButton" to="." method="_on_TestResourceWrapperButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8/TestEmitEventButton" to="." method="_on_TestEmitEventButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8/TestSubscribeEventButton" to="." method="_on_TestSubscribeEventButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer8/TestSignalConnectionButton" to="." method="_on_TestSignalConnectionButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9/TestCreateCoroutineButton" to="." method="_on_TestCreateCoroutineButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9/TestResumeCoroutineButton" to="." method="_on_TestResumeCoroutineButton_pressed"]
+[connection signal="pressed" from="VBoxContainer/ScrollContainer/MainContent/NewFeaturesHBox/VBoxContainer9/TestCoroutineStatusButton" to="." method="_on_TestCoroutineStatusButton_pressed"]

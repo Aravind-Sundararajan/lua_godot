@@ -111,6 +111,10 @@ text = "Get Global Variable"
 layout_mode = 2
 text = "Test All New Features"
 
+[node name="TestAutoloadButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
+layout_mode = 2
+text = "Test Autoload Singletons"
+
 [node name="HSeparator3" type="HSeparator" parent="VBoxContainer/TabContainer/Scripting"]
 layout_mode = 2
 
@@ -138,7 +142,38 @@ end
 -- Test new features
 print(\"Testing new features...\")
 local result = _G.advanced_calculation(100, 1.5, {bonus = 25, percentage = 10})
-print(\"Advanced calculation result: \" .. result)"
+print(\"Advanced calculation result: \" .. result)
+
+-- Test autoload singleton access
+print(\"\\n=== Testing Autoload Singleton ===\")
+local test_autoload = get_autoload_singleton(\"TestAutoload\")
+if test_autoload then
+    print(\"✓ Successfully retrieved TestAutoload singleton\")
+    
+    -- Get player info
+    local player_info = test_autoload:get_player_info()
+    if player_info then
+        print(\"Player name: \" .. (player_info.name or \"Unknown\"))
+        print(\"Player score: \" .. (player_info.score or 0))
+    end
+    
+    -- Set player name
+    test_autoload:set_player_name(\"LuaPlayer\")
+    
+    -- Add score
+    test_autoload:add_score(50)
+    
+    -- Get updated info
+    local updated_info = test_autoload:get_player_info()
+    if updated_info then
+        print(\"Updated score: \" .. (updated_info.score or 0))
+    end
+    
+    print(\"✓ Autoload singleton test completed!\")
+else
+    print(\"✗ Failed to retrieve TestAutoload singleton\")
+    print(\"The singleton might not be registered or accessible\")
+end"
 placeholder_text = "Enter Lua code here..."
 
 [node name="ExecuteCodeButton" type="Button" parent="VBoxContainer/TabContainer/Scripting"]
@@ -153,6 +188,10 @@ metadata/_tab_index = 2
 [node name="LifecycleLabel" type="Label" parent="VBoxContainer/TabContainer/Lifecycle"]
 layout_mode = 2
 text = "Lifecycle Hooks"
+
+[node name="LoadLifecycleTestButton" type="Button" parent="VBoxContainer/TabContainer/Lifecycle"]
+layout_mode = 2
+text = "Load Lifecycle Test Script"
 
 [node name="CallInitButton" type="Button" parent="VBoxContainer/TabContainer/Lifecycle"]
 layout_mode = 2
