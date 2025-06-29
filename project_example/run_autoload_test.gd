@@ -4,7 +4,7 @@ extends Node
 # Run this script to test the Lua bridge's ability to access autoload singletons
 
 func _ready():
-    print("=== Autoload Singleton Test ===")
+    #print("=== Autoload Singleton Test ===")
     
     # Use the LuaBridgeManager singleton instead of creating our own instance
     if not LuaBridgeManager.is_bridge_ready():
@@ -19,35 +19,35 @@ func _ready():
     # Note: No need to manually unload - the manager handles cleanup
 
 func test_autoload_access():
-    print("\n--- Testing Autoload Singleton Access ---")
+    #print("\n--- Testing Autoload Singleton Access ---")
     
     # Test getting TestAutoload singleton
     var test_autoload = LuaBridgeManager.get_autoload_singleton("TestAutoload")
     if test_autoload:
-        print("✓ Successfully retrieved TestAutoload singleton")
-        print("Singleton class: ", LuaBridgeManager.get_object_class(test_autoload))
+        #print("✓ Successfully retrieved TestAutoload singleton")
+        #print("Singleton class: ", LuaBridgeManager.get_object_class(test_autoload))
     else:
-        print("✗ Failed to retrieve TestAutoload singleton")
-        print("Make sure TestAutoload is configured as an autoload singleton")
+        #print("✗ Failed to retrieve TestAutoload singleton")
+        #print("Make sure TestAutoload is configured as an autoload singleton")
     
     # Test non-existent singleton
     var non_existent = LuaBridgeManager.get_autoload_singleton("NonExistentSingleton")
     if not non_existent:
-        print("✓ Correctly returned null for non-existent singleton")
+        #print("✓ Correctly returned null for non-existent singleton")
     else:
-        print("✗ Unexpectedly got a value for non-existent singleton")
+        #print("✗ Unexpectedly got a value for non-existent singleton")
 
 func test_singleton_methods():
-    print("\n--- Testing Singleton Method Calls ---")
+    #print("\n--- Testing Singleton Method Calls ---")
     
     var test_autoload = LuaBridgeManager.get_autoload_singleton("TestAutoload")
     if not test_autoload:
-        print("Cannot test methods - TestAutoload singleton not available")
+        #print("Cannot test methods - TestAutoload singleton not available")
         return
     
     # Test get_player_info method
     var player_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", Array())
-    print("Initial player info: ", player_info)
+    #print("Initial player info: ", player_info)
     
     # Test set_player_name method
     var name_args = Array()
@@ -64,7 +64,7 @@ func test_singleton_methods():
     
     # Get updated player info
     var updated_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", Array())
-    print("Updated player info: ", updated_info)
+    #print("Updated player info: ", updated_info)
     
     # Test calculate_damage method
     var damage_args = Array()
@@ -72,14 +72,14 @@ func test_singleton_methods():
     damage_args.append(1.5)    # multiplier
     damage_args.append(0.2)    # armor
     var damage = LuaBridgeManager.safe_call_method(test_autoload, "calculate_damage", damage_args)
-    print("Calculated damage: ", damage)
+    #print("Calculated damage: ", damage)
     
     # Test get_random_number method
     var random_args = Array()
     random_args.append(1)
     random_args.append(100)
     var random_num = LuaBridgeManager.safe_call_method(test_autoload, "get_random_number", random_args)
-    print("Random number: ", random_num)
+    #print("Random number: ", random_num)
     
     # Test emit_game_event method
     var event_args = Array()
@@ -92,6 +92,6 @@ func test_singleton_methods():
     
     # Get final player info
     var final_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", Array())
-    print("Final player info: ", final_info)
+    #print("Final player info: ", final_info)
     
-    print("✓ All singleton method tests completed") 
+    #print("✓ All singleton method tests completed") 

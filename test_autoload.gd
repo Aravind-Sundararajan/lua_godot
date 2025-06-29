@@ -9,7 +9,7 @@ var player_name: String = "DefaultPlayer"
 var is_game_active: bool = false
 
 func _ready():
-	print("TestAutoload singleton initialized!")
+	#print("TestAutoload singleton initialized!")
 
 func _process(delta):
 	if is_game_active:
@@ -25,26 +25,26 @@ func get_player_info() -> Dictionary:
 
 func set_player_name(name: String):
 	player_name = name
-	print("Player name set to: ", name)
+	#print("Player name set to: ", name)
 
 func add_score(points: int):
 	player_score += points
-	print("Score updated: ", player_score)
+	#print("Score updated: ", player_score)
 
 func start_game():
 	is_game_active = true
 	game_time = 0.0
-	print("Game started!")
+	#print("Game started!")
 
 func stop_game():
 	is_game_active = false
-	print("Game stopped! Final score: ", player_score)
+	#print("Game stopped! Final score: ", player_score)
 
 func reset_game():
 	player_score = 0
 	game_time = 0.0
 	is_game_active = false
-	print("Game reset!")
+	#print("Game reset!")
 
 func get_random_number(min_val: int, max_val: int) -> int:
 	return randi_range(min_val, max_val)
@@ -55,4 +55,4 @@ func calculate_damage(base_damage: float, multiplier: float, armor: float) -> fl
 
 func emit_game_event(event_name: String, data: Variant):
 	# This would emit a signal in a real implementation
-	print("Game event: ", event_name, " with data: ", data) 
+	#print("Game event: ", event_name, " with data: ", data) 

@@ -18,7 +18,7 @@ signal inventory_changed()
 signal gold_changed(new_amount: int)
 
 func _ready():
-	print("InventoryManager singleton initialized!")
+	#print("InventoryManager singleton initialized!")
 	# Initialize with some default items
 	add_item("health_potion", 5)
 	add_item("mana_potion", 3)
@@ -30,7 +30,7 @@ func add_item(item_id: String, quantity: int) -> bool:
 	Returns true if successful, false if inventory is full.
 	"""
 	if get_total_items() + quantity > max_items:
-		print("Cannot add items: inventory full")
+		#print("Cannot add items: inventory full")
 		return false
 	
 	if items.has(item_id):
@@ -38,7 +38,7 @@ func add_item(item_id: String, quantity: int) -> bool:
 	else:
 		items[item_id] = quantity
 	
-	print("Added " + str(quantity) + " " + item_id + " to inventory")
+	#print("Added " + str(quantity) + " " + item_id + " to inventory")
 	item_added.emit(item_id, quantity)
 	inventory_changed.emit()
 	return true
@@ -49,14 +49,14 @@ func remove_item(item_id: String, quantity: int) -> bool:
 	Returns true if successful, false if not enough items.
 	"""
 	if not items.has(item_id) or items[item_id] < quantity:
-		print("Cannot remove items: not enough " + item_id)
+		#print("Cannot remove items: not enough " + item_id)
 		return false
 	
 	items[item_id] -= quantity
 	if items[item_id] <= 0:
 		items.erase(item_id)
 	
-	print("Removed " + str(quantity) + " " + item_id + " from inventory")
+	#print("Removed " + str(quantity) + " " + item_id + " from inventory")
 	item_removed.emit(item_id, quantity)
 	inventory_changed.emit()
 	return true
@@ -84,13 +84,13 @@ func clear_inventory():
 	"""Clear all items from inventory."""
 	items.clear()
 	inventory_changed.emit()
-	print("Inventory cleared")
+	#print("Inventory cleared")
 
 func add_gold(amount: int):
 	"""Add gold to player's wallet."""
 	gold += amount
 	gold_changed.emit(gold)
-	print("Added " + str(amount) + " gold. Total: " + str(gold))
+	#print("Added " + str(amount) + " gold. Total: " + str(gold))
 
 func remove_gold(amount: int) -> bool:
 	"""
@@ -98,12 +98,12 @@ func remove_gold(amount: int) -> bool:
 	Returns true if successful, false if not enough gold.
 	"""
 	if gold < amount:
-		print("Not enough gold!")
+		#print("Not enough gold!")
 		return false
 	
 	gold -= amount
 	gold_changed.emit(gold)
-	print("Removed " + str(amount) + " gold. Total: " + str(gold))
+	#print("Removed " + str(amount) + " gold. Total: " + str(gold))
 	return true
 
 func get_gold() -> int:
@@ -113,7 +113,7 @@ func get_gold() -> int:
 func set_player_name(name: String):
 	"""Set the player's name."""
 	player_name = name
-	print("Player name set to: " + name)
+	#print("Player name set to: " + name)
 
 func get_player_name() -> String:
 	"""Get the player's name."""
@@ -165,15 +165,15 @@ func buy_item(item_id: String, quantity: int) -> bool:
 	var cost = calculate_item_value(item_id, quantity)
 	
 	if not can_afford_item(item_id, quantity):
-		print("Cannot afford " + str(quantity) + " " + item_id + " (cost: " + str(cost) + " gold)")
+		#print("Cannot afford " + str(quantity) + " " + item_id + " (cost: " + str(cost) + " gold)")
 		return false
 	
 	if not add_item(item_id, quantity):
-		print("Cannot add items to inventory")
+		#print("Cannot add items to inventory")
 		return false
 	
 	remove_gold(cost)
-	print("Bought " + str(quantity) + " " + item_id + " for " + str(cost) + " gold")
+	#print("Bought " + str(quantity) + " " + item_id + " for " + str(cost) + " gold")
 	return true
 
 func sell_item(item_id: String, quantity: int) -> bool:
@@ -182,10 +182,10 @@ func sell_item(item_id: String, quantity: int) -> bool:
 	Returns true if successful, false if not enough items.
 	"""
 	if not remove_item(item_id, quantity):
-		print("Cannot sell items: not enough " + item_id)
+		#print("Cannot sell items: not enough " + item_id)
 		return false
 	
 	var value = calculate_item_value(item_id, quantity)
 	add_gold(value)
-	print("Sold " + str(quantity) + " " + item_id + " for " + str(value) + " gold")
+	#print("Sold " + str(quantity) + " " + item_id + " for " + str(value) + " gold")
 	return true 

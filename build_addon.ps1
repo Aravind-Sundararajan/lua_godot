@@ -35,6 +35,19 @@ switch ($Command.ToLower()) {
                 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
             }
             Copy-Item "lua_bridge.dll" "$targetDir\lua_bridge.windows.template_debug.x86_64.dll" -Force
+            
+            Write-Host "Copying to main project..." -ForegroundColor Cyan
+            $mainProjectDir = "..\addons\lua_bridge\bin\windows"
+            if (-not (Test-Path $mainProjectDir)) {
+                New-Item -ItemType Directory -Path $mainProjectDir -Force | Out-Null
+            }
+            robocopy "project_example\addons\lua_bridge\bin\windows" $mainProjectDir "*.dll" | Out-Null
+            if ($LASTEXITCODE -le 7) {  # robocopy success codes are 0-7
+                Write-Host "DLL copied to main project successfully!" -ForegroundColor Green
+            } else {
+                Write-Host "Warning: Failed to copy DLL to main project" -ForegroundColor Yellow
+            }
+            
             Write-Host "Build completed successfully!" -ForegroundColor Green
         } else {
             Write-Host "Build failed!" -ForegroundColor Red
@@ -53,6 +66,19 @@ switch ($Command.ToLower()) {
                 New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
             }
             Copy-Item "lua_bridge.dll" "$targetDir\lua_bridge.windows.template_debug.x86_64.dll" -Force
+            
+            Write-Host "Copying to main project..." -ForegroundColor Cyan
+            $mainProjectDir = "..\addons\lua_bridge\bin\windows"
+            if (-not (Test-Path $mainProjectDir)) {
+                New-Item -ItemType Directory -Path $mainProjectDir -Force | Out-Null
+            }
+            robocopy "project_example\addons\lua_bridge\bin\windows" $mainProjectDir "*.dll" | Out-Null
+            if ($LASTEXITCODE -le 7) {  # robocopy success codes are 0-7
+                Write-Host "DLL copied to main project successfully!" -ForegroundColor Green
+            } else {
+                Write-Host "Warning: Failed to copy DLL to main project" -ForegroundColor Yellow
+            }
+            
             Write-Host "Build completed successfully!" -ForegroundColor Green
         } else {
             Write-Host "Build failed!" -ForegroundColor Red

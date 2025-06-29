@@ -12,7 +12,7 @@ signal bridge_initialized()
 signal bridge_initialization_failed(error: String)
 
 func _ready():
-	print("LuaBridgeManager: Singleton loaded")
+	#print("LuaBridgeManager: Singleton loaded")
 
 func get_bridge():
 	"""
@@ -31,7 +31,7 @@ func initialize_bridge() -> bool:
 	if is_initialized:
 		return lua_bridge != null
 	
-	print("LuaBridgeManager: Attempting to initialize bridge...")
+	#print("LuaBridgeManager: Attempting to initialize bridge...")
 	
 	# Reset bridge
 	lua_bridge = null
@@ -39,22 +39,22 @@ func initialize_bridge() -> bool:
 	# Try to get the bridge from the engine singleton first (if it exists)
 	if Engine.has_singleton("LuaBridge"):
 		lua_bridge = Engine.get_singleton("LuaBridge")
-		print("LuaBridgeManager: Found LuaBridge singleton")
+		#print("LuaBridgeManager: Found LuaBridge singleton")
 	else:
 		# Try to create using the GDExtension class
 		if ClassDB.class_exists("LuaBridge"):
-			print("LuaBridgeManager: Creating LuaBridge instance from GDExtension...")
+			#print("LuaBridgeManager: Creating LuaBridge instance from GDExtension...")
 			lua_bridge = ClassDB.instantiate("LuaBridge")
 			if lua_bridge:
-				print("LuaBridgeManager: Created LuaBridge instance")
+				#print("LuaBridgeManager: Created LuaBridge instance")
 			else:
 				initialization_error = "Failed to instantiate LuaBridge"
-				print("✗ LuaBridgeManager: " + initialization_error)
+				#print("✗ LuaBridgeManager: " + initialization_error)
 				bridge_initialization_failed.emit(initialization_error)
 				return false
 		else:
 			initialization_error = "LuaBridge class not found - GDExtension may not be loaded"
-			print("✗ LuaBridgeManager: " + initialization_error)
+			#print("✗ LuaBridgeManager: " + initialization_error)
 			bridge_initialization_failed.emit(initialization_error)
 			return false
 	
@@ -62,7 +62,7 @@ func initialize_bridge() -> bool:
 		# Verify the bridge has the required methods
 		if not lua_bridge.has_method("exec_string"):
 			initialization_error = "LuaBridge instance missing required methods"
-			print("✗ LuaBridgeManager: " + initialization_error)
+			#print("✗ LuaBridgeManager: " + initialization_error)
 			bridge_initialization_failed.emit(initialization_error)
 			return false
 		
@@ -72,12 +72,12 @@ func initialize_bridge() -> bool:
 		
 		is_initialized = true
 		initialization_error = ""
-		print("✓ LuaBridgeManager: Bridge initialized successfully")
+		#print("✓ LuaBridgeManager: Bridge initialized successfully")
 		bridge_initialized.emit()
 		return true
 	else:
 		initialization_error = "Failed to create LuaBridge instance"
-		print("✗ LuaBridgeManager: " + initialization_error)
+		#print("✗ LuaBridgeManager: " + initialization_error)
 		bridge_initialization_failed.emit(initialization_error)
 		return false
 
@@ -90,7 +90,7 @@ func unload_bridge():
 			lua_bridge.unload()
 		lua_bridge = null
 		is_initialized = false
-		print("✓ LuaBridgeManager: Bridge unloaded")
+		#print("✓ LuaBridgeManager: Bridge unloaded")
 
 func is_bridge_ready() -> bool:
 	"""

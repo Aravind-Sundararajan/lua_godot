@@ -1,25 +1,69 @@
 #include "bridge.h"
+#include <godot_cpp/classes/json.hpp>
+#include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/classes/file_access.hpp>
-#include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
 #include <godot_cpp/classes/node.hpp>
-#include <godot_cpp/classes/engine.hpp>
-#include <godot_cpp/classes/scene_tree.hpp>
-#include <godot_cpp/classes/window.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
-#include <godot_cpp/classes/os.hpp>
+#include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/main_loop.hpp>
+#include <godot_cpp/classes/script.hpp>
+#include <godot_cpp/classes/resource.hpp>
+
+// Lua includes
+extern "C" {
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
+}
 
 using namespace godot;
 
+// Forward declarations for static helper functions
+static int lua_method_wrapper(lua_State *L);
+
+// Move ResourceUserData struct to file scope
+struct ResourceUserData {
+	Object* obj_ptr;
+	Ref<Resource> resource_ref;
+};
+
+// Add size/alignment check
+static_assert(sizeof(ResourceUserData) == sizeof(Object*) + sizeof(Ref<Resource>), "ResourceUserData size mismatch");
+static_assert(alignof(ResourceUserData) >= alignof(Object*), "ResourceUserData alignment issue with Object*");
+static_assert(alignof(ResourceUserData) >= alignof(Ref<Resource>), "ResourceUserData alignment issue with Ref<Resource>");
+
+// Add at the top of the file, after includes
+// static std::vector<Ref<Resource>> g_resource_registry;
+
+// Add stack dump function
+void dump_lua_stack(lua_State* L) {
+	int top = lua_gettop(L);
+	UtilityFunctions::print("[LuaBridge] Stack dump - top: " + String::num_int64(top));
+	for (int i = 1; i <= top; ++i) {
+		int t = lua_type(L, i);
+		const char* type_name = lua_typename(L, t);
+		UtilityFunctions::print("[LuaBridge] Stack[" + String::num_int64(i) + "]: " + String(type_name));
+	}
+}
+
+
+extern "C" int lua_test_return_42(lua_State* L) {
+    UtilityFunctions::print("[LuaBridge] lua_test_return_42 called (with Lua C API)");
+    lua_pushinteger(L, 42);
+    dump_lua_stack(L);
+    UtilityFunctions::print("[LuaBridge] About to return from lua_test_return_42");
+    return 1;
+}
+
 void LuaBridge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("exec_string", "code"), &LuaBridge::exec_string);
-	ClassDB::bind_method(D_METHOD("exec_file", "path"), &LuaBridge::exec_file);
 	ClassDB::bind_method(D_METHOD("load_file", "path"), &LuaBridge::load_file);
-	ClassDB::bind_method(D_METHOD("reload"), &LuaBridge::reload);
 	ClassDB::bind_method(D_METHOD("unload"), &LuaBridge::unload);
 	
 	ClassDB::bind_method(D_METHOD("set_global", "name", "value"), &LuaBridge::set_global);
@@ -28,54 +72,11 @@ void LuaBridge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("call_function", "func_name", "args"), &LuaBridge::call_function);
 	ClassDB::bind_method(D_METHOD("register_function", "name", "cb"), &LuaBridge::register_function);
 	
-	// Type checking and validation
-	ClassDB::bind_method(D_METHOD("is_instance", "obj", "class_name"), &LuaBridge::is_instance);
-	ClassDB::bind_method(D_METHOD("get_class", "obj"), &LuaBridge::get_class);
-	ClassDB::bind_method(D_METHOD("validate_function_args", "func_name", "args"), &LuaBridge::validate_function_args);
-	
-	// Safe casting wrappers
-	ClassDB::bind_method(D_METHOD("create_wrapper", "obj", "class_name"), &LuaBridge::create_wrapper);
-	ClassDB::bind_method(D_METHOD("is_wrapper", "obj"), &LuaBridge::is_wrapper);
-	ClassDB::bind_method(D_METHOD("unwrap_object", "wrapper"), &LuaBridge::unwrap_object);
-	ClassDB::bind_method(D_METHOD("get_wrapper_class", "wrapper"), &LuaBridge::get_wrapper_class);
-	ClassDB::bind_method(D_METHOD("is_wrapper_valid", "wrapper"), &LuaBridge::is_wrapper_valid);
-	ClassDB::bind_method(D_METHOD("safe_call_method", "wrapper", "method_name", "args"), &LuaBridge::safe_call_method);
-	
-	// Mod management
-	ClassDB::bind_method(D_METHOD("load_script_from_directory", "mod_dir"), &LuaBridge::load_script_from_directory);
-	ClassDB::bind_method(D_METHOD("call_event", "event_name", "args"), &LuaBridge::call_event);
-	ClassDB::bind_method(D_METHOD("list_loaded_mods"), &LuaBridge::list_loaded_mods);
-	ClassDB::bind_method(D_METHOD("unload_mod", "mod_name"), &LuaBridge::unload_mod);
-	
-	// JSON mod management
-	ClassDB::bind_method(D_METHOD("load_mod_from_json", "mod_json_path"), &LuaBridge::load_mod_from_json);
-	ClassDB::bind_method(D_METHOD("load_mods_from_directory", "mods_dir"), &LuaBridge::load_mods_from_directory);
-	ClassDB::bind_method(D_METHOD("get_mod_info", "mod_name"), &LuaBridge::get_mod_info);
-	ClassDB::bind_method(D_METHOD("get_all_mod_info"), &LuaBridge::get_all_mod_info);
-	ClassDB::bind_method(D_METHOD("is_mod_enabled", "mod_name"), &LuaBridge::is_mod_enabled);
-	ClassDB::bind_method(D_METHOD("enable_mod", "mod_name"), &LuaBridge::enable_mod);
-	ClassDB::bind_method(D_METHOD("disable_mod", "mod_name"), &LuaBridge::disable_mod);
-	
-	// Lifecycle hooks
-	ClassDB::bind_method(D_METHOD("call_on_init"), &LuaBridge::call_on_init);
-	ClassDB::bind_method(D_METHOD("call_on_ready"), &LuaBridge::call_on_ready);
-	ClassDB::bind_method(D_METHOD("call_on_update", "delta"), &LuaBridge::call_on_update);
-	ClassDB::bind_method(D_METHOD("call_on_exit"), &LuaBridge::call_on_exit);
-	
-	// Security & sandboxing
-	ClassDB::bind_method(D_METHOD("set_sandboxed", "enabled"), &LuaBridge::set_sandboxed);
-	ClassDB::bind_method(D_METHOD("is_sandboxed"), &LuaBridge::is_sandboxed);
-	ClassDB::bind_method(D_METHOD("setup_safe_environment"), &LuaBridge::setup_safe_environment);
-	
-	// Utility methods
-	ClassDB::bind_method(D_METHOD("print_to_console", "message"), &LuaBridge::print_to_console);
-	ClassDB::bind_method(D_METHOD("log_error", "error_message"), &LuaBridge::log_error);
-	ClassDB::bind_method(D_METHOD("get_last_error"), &LuaBridge::get_last_error);
-	
-	// Signal and property access
-	ClassDB::bind_method(D_METHOD("connect_signal", "obj", "signal_name", "lua_func_name"), &LuaBridge::connect_signal);
+	// Object access
 	ClassDB::bind_method(D_METHOD("get_property", "obj", "property_name"), &LuaBridge::get_property);
 	ClassDB::bind_method(D_METHOD("set_property", "obj", "property_name", "value"), &LuaBridge::set_property);
+	ClassDB::bind_method(D_METHOD("call_method", "obj", "method_name", "args"), &LuaBridge::call_method);
+	ClassDB::bind_method(D_METHOD("get_class", "obj"), &LuaBridge::get_class);
 	
 	// Scene and resource management
 	ClassDB::bind_method(D_METHOD("get_node", "obj", "path"), &LuaBridge::get_node);
@@ -88,14 +89,60 @@ void LuaBridge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("emit_event", "name", "data"), &LuaBridge::emit_event);
 	ClassDB::bind_method(D_METHOD("subscribe_event", "name", "func"), &LuaBridge::subscribe_event);
 
-	// Error isolation and mod reloading
-	ClassDB::bind_method(D_METHOD("reload_mod", "mod_name"), &LuaBridge::reload_mod);
+	// Signal connection
+	ClassDB::bind_method(D_METHOD("connect_signal", "obj", "signal_name", "lua_func_name"), &LuaBridge::connect_signal);
 
-	// Coroutine support
+	// Security & sandboxing
+	ClassDB::bind_method(D_METHOD("set_sandboxed", "enabled"), &LuaBridge::set_sandboxed);
+	ClassDB::bind_method(D_METHOD("is_sandboxed"), &LuaBridge::is_sandboxed);
+	ClassDB::bind_method(D_METHOD("setup_safe_environment"), &LuaBridge::setup_safe_environment);
+	
+	// Utility methods
+	ClassDB::bind_method(D_METHOD("print_to_console", "message"), &LuaBridge::print_to_console);
+	ClassDB::bind_method(D_METHOD("log_error", "error_message"), &LuaBridge::log_error);
+	ClassDB::bind_method(D_METHOD("get_last_error"), &LuaBridge::get_last_error);
+	ClassDB::bind_method(D_METHOD("clear_last_error"), &LuaBridge::clear_last_error);
+
+	// Signals
+	ADD_SIGNAL(MethodInfo("lua_error_occurred", PropertyInfo(Variant::STRING, "error_message"), PropertyInfo(Variant::STRING, "error_type"), PropertyInfo(Variant::STRING, "file_path")));
+
+	// Mod management
+	ClassDB::bind_method(D_METHOD("load_mods_from_directory", "mods_dir"), &LuaBridge::load_mods_from_directory);
+	ClassDB::bind_method(D_METHOD("load_mod_from_json", "mod_json_path"), &LuaBridge::load_mod_from_json);
+	ClassDB::bind_method(D_METHOD("enable_mod", "mod_name"), &LuaBridge::enable_mod);
+	ClassDB::bind_method(D_METHOD("disable_mod", "mod_name"), &LuaBridge::disable_mod);
+	ClassDB::bind_method(D_METHOD("reload_mod", "mod_name"), &LuaBridge::reload_mod);
+	ClassDB::bind_method(D_METHOD("get_all_mod_info"), &LuaBridge::get_all_mod_info);
+	ClassDB::bind_method(D_METHOD("get_mod_info", "mod_name"), &LuaBridge::get_mod_info);
+	ClassDB::bind_method(D_METHOD("is_mod_enabled", "mod_name"), &LuaBridge::is_mod_enabled);
+
+	// Lifecycle hooks
+	ClassDB::bind_method(D_METHOD("call_on_init"), &LuaBridge::call_on_init);
+	ClassDB::bind_method(D_METHOD("call_on_ready"), &LuaBridge::call_on_ready);
+	ClassDB::bind_method(D_METHOD("call_on_update", "delta"), &LuaBridge::call_on_update);
+	ClassDB::bind_method(D_METHOD("call_on_exit"), &LuaBridge::call_on_exit);
+
+	// Coroutines
 	ClassDB::bind_method(D_METHOD("create_coroutine", "name", "func_name", "args"), &LuaBridge::create_coroutine);
 	ClassDB::bind_method(D_METHOD("resume_coroutine", "name", "data"), &LuaBridge::resume_coroutine);
 	ClassDB::bind_method(D_METHOD("is_coroutine_active", "name"), &LuaBridge::is_coroutine_active);
 	ClassDB::bind_method(D_METHOD("cleanup_coroutines"), &LuaBridge::cleanup_coroutines);
+
+	// Object wrappers
+	ClassDB::bind_method(D_METHOD("create_wrapper", "obj", "class_name"), &LuaBridge::create_wrapper);
+	ClassDB::bind_method(D_METHOD("is_wrapper", "obj"), &LuaBridge::is_wrapper);
+	ClassDB::bind_method(D_METHOD("unwrap_object", "wrapper"), &LuaBridge::unwrap_object);
+	ClassDB::bind_method(D_METHOD("get_wrapper_class", "wrapper"), &LuaBridge::get_wrapper_class);
+	ClassDB::bind_method(D_METHOD("is_wrapper_valid", "wrapper"), &LuaBridge::is_wrapper_valid);
+	ClassDB::bind_method(D_METHOD("safe_call_method", "wrapper", "method_name", "args"), &LuaBridge::safe_call_method);
+
+	// Instance checking
+	ClassDB::bind_method(D_METHOD("is_instance", "obj", "class_name"), &LuaBridge::is_instance);
+
+	// Class instantiation
+	ClassDB::bind_method(D_METHOD("create_instance", "class_name", "args"), &LuaBridge::create_instance, DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("can_instantiate_class", "class_name"), &LuaBridge::can_instantiate_class);
+	ClassDB::bind_method(D_METHOD("get_instantiable_classes"), &LuaBridge::get_instantiable_classes);
 }
 
 LuaBridge::LuaBridge() {
@@ -106,17 +153,32 @@ LuaBridge::LuaBridge() {
 		} else {
 			luaL_openlibs(L);
 		}
+		setup_godot_object_metatable();
 		setup_game_api();
 		setup_require_handler();
+
+		// In the LuaBridge initialization, after setting up the Lua state, register the function:
+		lua_register(L, "test_return_42", lua_test_return_42);
+		UtilityFunctions::print("[LuaBridge] Registered test_return_42");
 	}
 }
 
 LuaBridge::~LuaBridge() {
 	if (L) {
-		call_on_exit(); // Call exit hooks before cleanup
-		cleanup_coroutines(); // Clean up any active coroutines
+		UtilityFunctions::print("[LuaBridge] Destructor called, cleaning up...");
+		
+		// Force garbage collection to clean up all wrapped objects
+		UtilityFunctions::print("[LuaBridge] Running garbage collection...");
+		lua_gc(L, LUA_GCCOLLECT, 0);
+		
+		// Wait a moment for any pending cleanup
+		UtilityFunctions::print("[LuaBridge] Garbage collection completed");
+		
+		// Close the Lua state
+		UtilityFunctions::print("[LuaBridge] Closing Lua state...");
 		lua_close(L);
 		L = nullptr;
+		UtilityFunctions::print("[LuaBridge] Cleanup completed");
 	}
 }
 
@@ -128,7 +190,6 @@ void LuaBridge::setup_require_handler() {
 }
 
 int LuaBridge::lua_require_mod(lua_State* L) {
-	// Upvalue 1: LuaBridge*
 	LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
 	if (!bridge) {
 		lua_pushstring(L, "[LuaBridge] require: No bridge context");
@@ -151,49 +212,63 @@ int LuaBridge::lua_require_mod(lua_State* L) {
 		return 1;
 	}
 	if (lua_pcall(L, 0, LUA_MULTRET, 0) != LUA_OK) {
-		lua_pushfstring(L, "[LuaBridge] require: Runtime error: %s", lua_tostring(L, -1));
-		lua_error(L);
+		// String error_msg = "Lua Runtime Error: " + get_lua_error();
+		// log_error(error_msg);
 		return 1;
 	}
 	return 1;
 }
 
-String LuaBridge::get_lua_stack_trace() {
-	if (!L) return "";
-	luaL_traceback(L, L, nullptr, 1);
-	if (lua_isstring(L, -1)) {
-		String trace = lua_tostring(L, -1);
-		lua_pop(L, 1);
-		return trace;
+int LuaBridge::lua_class_constructor(lua_State* L) {
+	LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
+	if (!bridge) {
+		lua_pushstring(L, "[LuaBridge] lua_class_constructor: No bridge context");
+		lua_error(L);
+		return 0;
 	}
-	lua_pop(L, 1);
-	return "";
+	
+	const char* class_name = lua_tostring(L, lua_upvalueindex(2));
+	if (!class_name) {
+		lua_pushstring(L, "[LuaBridge] lua_class_constructor: No class name");
+		lua_error(L);
+		return 0;
+	}
+	
+	String name = String(class_name);
+	
+	// Convert Lua arguments to Godot Array
+	Array args;
+	int num_args = lua_gettop(L);
+	
+	for (int i = 1; i <= num_args; i++) {
+		Variant arg = bridge->lua_to_godot(L, i);
+		args.append(arg);
+	}
+	
+	// Create the instance
+	Variant instance = bridge->create_instance(name, args);
+	
+	// Convert back to Lua
+	bridge->godot_to_lua(L, instance);
+	
+	return 1;
 }
 
-// Error-isolated exec_string
 Variant LuaBridge::exec_string(String code) {
 	if (!L) return Variant();
 	int result = luaL_loadstring(L, code.utf8().get_data());
 	if (result != LUA_OK) {
-		log_error("Lua Load Error: " + get_lua_error());
-		print_to_console(get_lua_stack_trace());
+		String error_msg = "Lua Load Error: " + get_lua_error();
+		log_lua_error(error_msg, "syntax", "");
 		return Variant();
 	}
 	result = lua_pcall(L, 0, LUA_MULTRET, 0);
 	if (result != LUA_OK) {
-		log_error("Lua Runtime Error: " + get_lua_error());
-		print_to_console(get_lua_stack_trace());
+		String error_msg = "Lua Runtime Error: " + get_lua_error();
+		log_lua_error(error_msg, "runtime", "");
 		return Variant();
 	}
 	return get_global("_return_value");
-}
-
-void LuaBridge::exec_file(String path) {
-	if (!L) return;
-	
-	if (luaL_dofile(L, path.utf8().get_data()) != LUA_OK) {
-		log_error("Lua File Error: " + get_lua_error());
-	}
 }
 
 bool LuaBridge::load_file(String path) {
@@ -204,71 +279,43 @@ bool LuaBridge::load_file(String path) {
 		resolved_path = ProjectSettings::get_singleton()->globalize_path(path);
 	}
 
-	print_to_console("Attempting to load Lua file: " + resolved_path);
-
 	if (!FileAccess::file_exists(resolved_path)) {
-		log_error("Lua file not found: " + resolved_path);
+		String error_msg = "Lua file not found: " + resolved_path;
+		log_lua_error(error_msg, "file_not_found", path);
 		return false;
 	}
 
 	if (luaL_dofile(L, resolved_path.utf8().get_data()) != LUA_OK) {
-		log_error("Lua File Error: " + get_lua_error());
+		String error_msg = "Lua File Error in " + path + ": " + get_lua_error();
+		log_lua_error(error_msg, "file_error", path);
 		return false;
-	}
-
-	// Add to loaded mods list
-	String mod_name = path.get_file().get_basename();
-	if (!loaded_mods.has(mod_name)) {
-		loaded_mods.append(mod_name);
 	}
 
 	return true;
 }
 
-void LuaBridge::reload() {
-	if (L) {
-		call_on_exit(); // Call exit hooks
-		lua_close(L);
-	}
-	
-	L = luaL_newstate();
-	if (L) {
-		if (sandboxed) {
-			setup_safe_environment();
-		} else {
-			luaL_openlibs(L);
-		}
-		setup_game_api();
-		print_to_console("Lua VM reloaded successfully");
-	} else {
-		log_error("Failed to reload Lua VM");
-	}
-}
-
 void LuaBridge::unload() {
 	if (L) {
-		call_on_exit();
+		UtilityFunctions::print("[LuaBridge] Unload called, cleaning up...");
+		
+		// Force garbage collection to clean up all wrapped objects
+		UtilityFunctions::print("[LuaBridge] Running garbage collection...");
+		lua_gc(L, LUA_GCCOLLECT, 0);
+		
+		// Wait a moment for any pending cleanup
+		UtilityFunctions::print("[LuaBridge] Garbage collection completed");
+		
+		// Close the Lua state
+		UtilityFunctions::print("[LuaBridge] Closing Lua state...");
 		lua_close(L);
 		L = nullptr;
-		loaded_mods.clear();
+		UtilityFunctions::print("[LuaBridge] Unload completed");
 	}
 }
 
 void LuaBridge::set_global(String name, Variant value) {
 	if (!L) return;
-	
-	if (value.get_type() == Variant::Type::STRING) {
-		lua_pushstring(L, ((String)value).utf8().get_data());
-	} else if (value.get_type() == Variant::Type::INT) {
-		lua_pushinteger(L, (int)value);
-	} else if (value.get_type() == Variant::Type::FLOAT) {
-		lua_pushnumber(L, (double)value);
-	} else if (value.get_type() == Variant::Type::BOOL) {
-		lua_pushboolean(L, (bool)value);
-	} else {
-		lua_pushnil(L);
-	}
-	
+	godot_to_lua(L, value);
 	lua_setglobal(L, name.utf8().get_data());
 }
 
@@ -276,730 +323,96 @@ Variant LuaBridge::get_global(String name) const {
 	if (!L) return Variant();
 	
 	lua_getglobal(L, name.utf8().get_data());
-	
-	Variant result;
-	if (lua_isstring(L, -1)) {
-		result = String(lua_tostring(L, -1));
-	} else if (lua_isnumber(L, -1)) {
-		result = lua_tonumber(L, -1);
-	} else if (lua_isboolean(L, -1)) {
-		result = (bool)lua_toboolean(L, -1);
-	} else if (lua_isfunction(L, -1)) {
-		// For functions, we'll return a special string indicating it's a function
-		// In a full implementation, you might want to return a function wrapper
-		result = String("LuaFunction:" + name);
-	} else if (lua_istable(L, -1)) {
-		// For tables, we'll return a special string indicating it's a table
-		// In a full implementation, you might want to convert the table to a Dictionary
-		result = String("LuaTable:" + name);
-	} else if (lua_isnil(L, -1)) {
-		result = Variant();
-	} else {
-		// For other types (userdata, thread, etc.), return a generic indicator
-		result = String("LuaValue:" + name);
-	}
-	
+	Variant result = lua_to_godot(L, -1);
 	lua_pop(L, 1);
 	return result;
 }
 
-// Error-isolated call_function
 Variant LuaBridge::call_function(String func_name, Array args) {
 	if (!L) return Variant();
-	// Validate arguments before calling
-	if (!validate_function_args(func_name, args)) {
-		print_to_console("Argument validation failed for function: " + func_name);
+
+	// Support dotted names for table lookups
+	PackedStringArray parts = func_name.split(".");
+	int n = parts.size();
+	if (n == 0) {
+		String error_msg = "Invalid function name: " + func_name;
+		print_to_console(error_msg);
+		last_error = error_msg;
 		return Variant();
 	}
-	// Push function
-	lua_getglobal(L, func_name.utf8().get_data());
+
+	// Push the first part (global/table)
+	lua_getglobal(L, parts[0].utf8().get_data());
+	if (n > 1) {
+		// Traverse tables for each part except the last
+		for (int i = 1; i < n - 1; ++i) {
+			if (!lua_istable(L, -1)) {
+				lua_pop(L, 1);
+				String error_msg = "Table not found in function path: " + parts[i-1];
+				print_to_console(error_msg);
+				last_error = error_msg;
+				return Variant();
+			}
+			lua_getfield(L, -1, parts[i].utf8().get_data());
+			lua_remove(L, -2); // Remove previous table
+		}
+		// Now get the function from the last table
+		if (!lua_istable(L, -1)) {
+			lua_pop(L, 1);
+			String error_msg = "Table not found in function path: " + parts[n-2];
+			print_to_console(error_msg);
+			last_error = error_msg;
+			return Variant();
+		}
+		lua_getfield(L, -1, parts[n-1].utf8().get_data());
+		lua_remove(L, -2); // Remove the table, leave the function
+	}
+
 	if (!lua_isfunction(L, -1)) {
 		lua_pop(L, 1);
-		print_to_console("Function not found: " + func_name);
+		String error_msg = "Function not found: " + func_name;
+		print_to_console(error_msg);
+		last_error = error_msg;
 		return Variant();
 	}
+
 	// Push arguments
 	for (int i = 0; i < args.size(); i++) {
-		Variant arg = args[i];
-		if (arg.get_type() == Variant::Type::STRING) {
-			lua_pushstring(L, ((String)arg).utf8().get_data());
-		} else if (arg.get_type() == Variant::Type::INT) {
-			lua_pushinteger(L, (int)arg);
-		} else if (arg.get_type() == Variant::Type::FLOAT) {
-			lua_pushnumber(L, (double)arg);
-		} else if (arg.get_type() == Variant::Type::BOOL) {
-			lua_pushboolean(L, (bool)arg);
-		} else {
-			lua_pushnil(L);
-		}
+		godot_to_lua(L, args[i]);
 	}
-	// Protected call
+
+	// Call function
 	int result = lua_pcall(L, args.size(), 1, 0);
 	if (result != LUA_OK) {
-		log_error("Lua Error in " + func_name + ": " + get_lua_error());
-		print_to_console(get_lua_stack_trace());
+		String error_msg = "Lua Error in " + func_name + ": " + get_lua_error();
+		log_lua_error(error_msg, "function_call", "");
 		lua_pop(L, 1);
 		return Variant();
 	}
-	// Store return value in global for retrieval
-	lua_setglobal(L, "_return_value");
-	return get_global("_return_value");
+
+	// Get return value
+	Variant return_value = lua_to_godot(L, -1);
+	lua_pop(L, 1);
+	return return_value;
 }
 
 void LuaBridge::register_function(String name, Callable cb) {
 	if (!L) {
-		log_error("Cannot register function: Lua state not initialized");
+		// log_error("Cannot register function: Lua state not initialized");
 		return;
 	}
 	
-	if (name.is_empty()) {
-		log_error("Cannot register function: Empty function name");
-		return;
-	}
-	
-	// Store the callable for later use
 	registered_functions[name] = cb;
 	
-	// Create a closure that captures the bridge instance and function name
 	lua_pushlightuserdata(L, this);
 	lua_pushstring(L, name.utf8().get_data());
 	lua_pushcclosure(L, lua_call_godot_function, 2);
-	
-	// Register it as a global function
 	lua_setglobal(L, name.utf8().get_data());
 	
 	print_to_console("Registered Godot function: " + name);
 }
 
-// Type checking and validation
-bool LuaBridge::is_instance(Variant obj, String class_name) {
-	if (obj.get_type() != Variant::Type::OBJECT) {
-		return false;
-	}
-	Object *object = Object::cast_to<Object>(obj.operator Object*());
-	if (!object) {
-		return false;
-	}
-	return object->is_class(class_name);
-}
-
-String LuaBridge::get_class(Variant obj) {
-	if (obj.get_type() != Variant::Type::OBJECT) {
-		return "Variant";
-	}
-	Object *object = Object::cast_to<Object>(obj.operator Object*());
-	if (!object) {
-		return "Invalid Object";
-	}
-	return object->get_class();
-}
-
-bool LuaBridge::validate_function_args(String func_name, Array args) {
-	if (!L) return false;
-	// Get the function from Lua
-	lua_getglobal(L, func_name.utf8().get_data());
-	if (!lua_isfunction(L, -1)) {
-		lua_pop(L, 1);
-		return false;
-	}
-	
-	// For now, let's be more permissive and not validate argument counts
-	// Lua functions can have variable arguments, and the validation was causing issues
-	// In a production system, you might want more sophisticated validation
-	lua_pop(L, 1);
-	return true;
-}
-
-// Safe casting wrappers
-Variant LuaBridge::create_wrapper(Variant obj, String class_name) const {
-	if (obj.get_type() != Variant::Type::OBJECT) {
-		print_to_console("Cannot create wrapper for non-object type");
-		return Variant();
-	}
-	
-	Object* object = Object::cast_to<Object>(obj.operator Object*());
-	if (!object) {
-		print_to_console("Invalid object cast");
-		return Variant();
-	}
-	
-	// Check if object is of the specified class or inherits from it
-	// Use is_class() which checks inheritance hierarchy
-	if (!object->is_class(class_name)) {
-		// Try to get the actual class name for debugging
-		String actual_class = object->get_class();
-		print_to_console("Object is not of class '" + class_name + "', actual class: '" + actual_class + "'");
-		
-		// For now, let's be more permissive and allow the wrapper creation
-		// In a production system, you might want to be more strict
-		print_to_console("Creating wrapper anyway (permissive mode)");
-	}
-	
-	// Create a wrapper that can be passed to Lua
-	// For now, we'll return the object itself with metadata
-	// In a full implementation, this would create Lua userdata
-	Dictionary wrapper;
-	wrapper["_object"] = obj;
-	wrapper["_class_name"] = class_name;
-	wrapper["_is_wrapper"] = true;
-	
-	return wrapper;
-}
-
-bool LuaBridge::is_wrapper(Variant obj) const {
-	if (obj.get_type() != Variant::Type::DICTIONARY) {
-		return false;
-	}
-	
-	Dictionary dict = obj;
-	return dict.has("_is_wrapper") && dict["_is_wrapper"];
-}
-
-Variant LuaBridge::unwrap_object(Variant wrapper) const {
-	if (!is_wrapper(wrapper)) {
-		print_to_console("Not a valid wrapper");
-		return Variant();
-	}
-	
-	Dictionary dict = wrapper;
-	return dict.get("_object", Variant());
-}
-
-String LuaBridge::get_wrapper_class(Variant wrapper) const {
-	if (!is_wrapper(wrapper)) {
-		return "Invalid";
-	}
-	
-	Dictionary dict = wrapper;
-	return dict.get("_class_name", "Unknown");
-}
-
-bool LuaBridge::is_wrapper_valid(Variant wrapper) const {
-	if (!is_wrapper(wrapper)) {
-		return false;
-	}
-	
-	Variant obj = unwrap_object(wrapper);
-	if (obj.get_type() != Variant::Type::OBJECT) {
-		return false;
-	}
-	
-	Object* object = Object::cast_to<Object>(obj.operator Object*());
-	return object != nullptr;
-}
-
-Variant LuaBridge::safe_call_method(Variant wrapper, String method_name, Array args) {
-	if (!is_wrapper(wrapper)) {
-		print_to_console("safe_call_method: Not a valid wrapper");
-		return Variant();
-	}
-	
-	Variant unwrapped = unwrap_object(wrapper);
-	if (unwrapped.get_type() != Variant::Type::OBJECT) {
-		print_to_console("safe_call_method: Wrapper contains invalid object");
-		return Variant();
-	}
-	
-	Object* object = Object::cast_to<Object>(unwrapped.operator Object*());
-	if (!object) {
-		print_to_console("safe_call_method: Failed to cast to Object");
-		return Variant();
-	}
-	
-	// Check if the method exists
-	if (!object->has_method(method_name)) {
-		print_to_console("Method does not exist: " + method_name);
-		return Variant();
-	}
-	
-	// Call the method safely
-	Callable callable(object, method_name);
-	return callable.callv(args);
-}
-
-// Mod management
-bool LuaBridge::load_script_from_directory(String mod_dir) {
-	Ref<DirAccess> dir = DirAccess::open(mod_dir);
-	if (!dir.is_valid()) {
-		log_error("Cannot open directory: " + mod_dir);
-		return false;
-	}
-	
-	dir->list_dir_begin();
-	String file_name = dir->get_next();
-	
-	while (!file_name.is_empty()) {
-		if (file_name.ends_with(".lua")) {
-			String full_path = mod_dir.path_join(file_name);
-			if (load_file(full_path)) {
-				print_to_console("Loaded mod: " + file_name);
-			}
-		}
-		file_name = dir->get_next();
-	}
-	
-	dir->list_dir_end();
-	return true;
-}
-
-bool LuaBridge::call_event(String event_name, Array args) {
-	return call_lua_function(event_name, args);
-}
-
-Array LuaBridge::list_loaded_mods() const {
-	return loaded_mods;
-}
-
-void LuaBridge::unload_mod(String mod_name) {
-	if (loaded_mods.has(mod_name)) {
-		// Call exit hook for the mod
-		call_on_exit();
-		loaded_mods.erase(mod_name);
-		print_to_console("Unloaded mod: " + mod_name);
-	}
-}
-
-// JSON mod management
-bool LuaBridge::load_mod_from_json(String mod_json_path) {
-	if (!FileAccess::file_exists(mod_json_path)) {
-		log_error("Mod JSON file not found: " + mod_json_path);
-		return false;
-	}
-	
-	Ref<FileAccess> file = FileAccess::open(mod_json_path, FileAccess::READ);
-	if (!file.is_valid()) {
-		log_error("Cannot open mod JSON file: " + mod_json_path);
-		return false;
-	}
-	
-	String json_string = file->get_as_text();
-	file->close();
-	
-	// Use the correct Godot 4 JSON parsing API with proper memory management
-	Ref<JSON> json;
-	json.instantiate();
-	Error parse_result = json->parse(json_string);
-	
-	if (parse_result != OK) {
-		log_error("Failed to parse mod JSON: " + json->get_error_message());
-		return false;
-	}
-	
-	Variant mod_data = json->get_data();
-	if (mod_data.get_type() != Variant::Type::DICTIONARY) {
-		log_error("Mod JSON must be a dictionary");
-		return false;
-	}
-	
-	Dictionary mod_dict = (Dictionary)mod_data;
-	String mod_name = mod_dict.get("name", "");
-	String entry_script = mod_dict.get("entry_script", "");
-	String version = mod_dict.get("version", "1.0.0");
-	String author = mod_dict.get("author", "");
-	String description = mod_dict.get("description", "");
-	bool enabled = mod_dict.get("enabled", true);
-	
-	if (mod_name.is_empty()) {
-		log_error("Mod JSON must contain a 'name' field");
-		return false;
-	}
-	
-	// Store mod metadata
-	Dictionary mod_info;
-	mod_info["name"] = mod_name;
-	mod_info["version"] = version;
-	mod_info["author"] = author;
-	mod_info["description"] = description;
-	mod_info["entry_script"] = entry_script;
-	mod_info["enabled"] = enabled;
-	mod_info["json_path"] = mod_json_path;
-	
-	mod_metadata[mod_name] = mod_info;
-	
-	// Load the entry script if specified and mod is enabled
-	if (!entry_script.is_empty() && enabled) {
-		String mod_dir = mod_json_path.get_base_dir();
-		String script_path = mod_dir.path_join(entry_script);
-		
-		if (load_file(script_path)) {
-			if (!enabled_mods.has(mod_name)) {
-				enabled_mods.append(mod_name);
-			}
-			print_to_console("Loaded mod: " + mod_name + " v" + version);
-			return true;
-		} else {
-			log_error("Failed to load entry script for mod: " + mod_name);
-			return false;
-		}
-	}
-	
-	print_to_console("Registered mod: " + mod_name + " v" + String(mod_info["version"]) + " (disabled: " + String(mod_info["enabled"]) + ")");
-	return true;
-}
-
-bool LuaBridge::load_mods_from_directory(String mods_dir) {
-	Ref<DirAccess> dir = DirAccess::open(mods_dir);
-	if (!dir.is_valid()) {
-		log_error("Cannot open mods directory: " + mods_dir);
-		return false;
-	}
-	
-	dir->list_dir_begin();
-	String file_name = dir->get_next();
-	int loaded_count = 0;
-	
-	while (!file_name.is_empty()) {
-		if (file_name == "." || file_name == "..") {
-			file_name = dir->get_next();
-			continue;
-		}
-		
-		String full_path = mods_dir.path_join(file_name);
-		
-		if (dir->current_is_dir()) {
-			// Check if this directory contains a mod.json
-			String mod_json_path = full_path.path_join("mod.json");
-			if (FileAccess::file_exists(mod_json_path)) {
-				if (load_mod_from_json(mod_json_path)) {
-					loaded_count++;
-				}
-			}
-		} else if (file_name.ends_with(".json")) {
-			// Direct JSON file
-			if (load_mod_from_json(full_path)) {
-				loaded_count++;
-			}
-		}
-		
-		file_name = dir->get_next();
-	}
-	
-	dir->list_dir_end();
-	print_to_console("Loaded " + String::num_int64(loaded_count) + " mods from directory: " + mods_dir);
-	return loaded_count > 0;
-}
-
-Dictionary LuaBridge::get_mod_info(String mod_name) const {
-	if (mod_metadata.has(mod_name)) {
-		return (Dictionary)mod_metadata[mod_name];
-	}
-	return Dictionary();
-}
-
-Array LuaBridge::get_all_mod_info() const {
-	Array all_info;
-	Array keys = mod_metadata.keys();
-	for (int i = 0; i < keys.size(); i++) {
-		String key = keys[i];
-		Dictionary info = mod_metadata[key];
-		all_info.append(info);
-	}
-	return all_info;
-}
-
-bool LuaBridge::is_mod_enabled(String mod_name) const {
-	return enabled_mods.has(mod_name);
-}
-
-void LuaBridge::enable_mod(String mod_name) {
-	if (!mod_metadata.has(mod_name)) {
-		log_error("Cannot enable unknown mod: " + mod_name);
-		return;
-	}
-	
-	if (enabled_mods.has(mod_name)) {
-		print_to_console("Mod already enabled: " + mod_name);
-		return;
-	}
-	
-	Dictionary mod_info = (Dictionary)mod_metadata[mod_name];
-	String entry_script = mod_info.get("entry_script", "");
-	String json_path = mod_info.get("json_path", "");
-	
-	if (entry_script.is_empty()) {
-		log_error("Mod has no entry script: " + mod_name);
-		return;
-	}
-	
-	String mod_dir = json_path.get_base_dir();
-	String script_path = mod_dir.path_join(entry_script);
-	
-	if (load_file(script_path)) {
-		enabled_mods.append(mod_name);
-		mod_info["enabled"] = true;
-		mod_metadata[mod_name] = mod_info;
-		print_to_console("Enabled mod: " + mod_name);
-	} else {
-		log_error("Failed to load entry script for mod: " + mod_name);
-	}
-}
-
-void LuaBridge::disable_mod(String mod_name) {
-	if (!enabled_mods.has(mod_name)) {
-		print_to_console("Mod not enabled: " + mod_name);
-		return;
-	}
-	
-	// Call exit hook before disabling
-	call_on_exit();
-	
-	enabled_mods.erase(mod_name);
-	
-	if (mod_metadata.has(mod_name)) {
-		Dictionary mod_info = (Dictionary)mod_metadata[mod_name];
-		mod_info["enabled"] = false;
-		mod_metadata[mod_name] = mod_info;
-	}
-	
-	print_to_console("Disabled mod: " + mod_name);
-}
-
-// Lifecycle hooks
-void LuaBridge::call_on_init() {
-	call_lua_function("on_init", Array());
-}
-
-void LuaBridge::call_on_ready() {
-	call_lua_function("on_ready", Array());
-}
-
-void LuaBridge::call_on_update(double delta) {
-	Array args;
-	args.append(delta);
-	call_lua_function("on_update", args);
-}
-
-void LuaBridge::call_on_exit() {
-	call_lua_function("on_exit", Array());
-}
-
-// Security & sandboxing
-void LuaBridge::set_sandboxed(bool enabled) {
-	sandboxed = enabled;
-}
-
-bool LuaBridge::is_sandboxed() const {
-	return sandboxed;
-}
-
-void LuaBridge::setup_safe_environment() {
-	if (!L) return;
-	
-	// Only load safe libraries
-	setup_safe_libraries();
-	
-	// Remove dangerous functions
-	lua_pushnil(L);
-	lua_setglobal(L, "os");
-	lua_pushnil(L);
-	lua_setglobal(L, "io");
-	lua_pushnil(L);
-	lua_setglobal(L, "package");
-	lua_pushnil(L);
-	lua_setglobal(L, "loadfile");
-	lua_pushnil(L);
-	lua_setglobal(L, "dofile");
-}
-
-// Utility methods
-void LuaBridge::print_to_console(String message) const {
-	UtilityFunctions::print("[LuaBridge] " + message);
-}
-
-void LuaBridge::log_error(String error_message) {
-	UtilityFunctions::print("[LuaBridge Error] " + error_message);
-}
-
-String LuaBridge::get_last_error() const {
-	if (!L) return "";
-	
-	lua_getglobal(L, "_last_error");
-	if (lua_isstring(L, -1)) {
-		String error = lua_tostring(L, -1);
-		lua_pop(L, 1);
-		return error;
-	}
-	lua_pop(L, 1);
-	return "";
-}
-
-// Private methods
-void LuaBridge::setup_game_api() {
-	if (!L) return;
-	
-	// Register wrapper functions to Lua
-	lua_register(L, "create_wrapper", [](lua_State* L) -> int {
-		// This would need to be implemented with proper Lua C API
-		// For now, we'll expose the wrapper methods through the bridge
-		return 0;
-	});
-	
-	// Register autoload singleton access function
-	lua_pushlightuserdata(L, this);
-	lua_pushcclosure(L, [](lua_State* L) -> int {
-		// Get the bridge instance from upvalue
-		LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
-		if (!bridge) {
-			lua_pushstring(L, "[LuaBridge] get_autoload_singleton: No bridge context");
-			lua_error(L);
-			return 0;
-		}
-		
-		// Get the singleton name from Lua
-		const char* singleton_name = luaL_checkstring(L, 1);
-		if (!singleton_name) {
-			lua_pushstring(L, "[LuaBridge] get_autoload_singleton: No singleton name provided");
-			lua_error(L);
-			return 0;
-		}
-		
-		// Get the singleton from the bridge
-		Variant singleton = bridge->get_autoload_singleton(String(singleton_name));
-		
-		// Push the result to Lua
-		if (singleton.get_type() == Variant::Type::OBJECT) {
-			// Create a wrapper for the object
-			Variant wrapper = bridge->create_wrapper(singleton, "Node");
-			if (wrapper.get_type() == Variant::Type::DICTIONARY) {
-				// Push the wrapper as a userdata with metatable
-				// For now, we'll push it as a table with the object reference
-				lua_newtable(L);
-				lua_pushstring(L, "_object");
-				lua_pushlightuserdata(L, singleton.operator Object*());
-				lua_settable(L, -3);
-				lua_pushstring(L, "_class");
-				lua_pushstring(L, "Node");
-				lua_settable(L, -3);
-			} else {
-				lua_pushnil(L);
-			}
-		} else {
-			lua_pushnil(L);
-		}
-		
-		return 1;
-	}, 1);
-	lua_setglobal(L, "get_autoload_singleton");
-	
-	// Register utility functions
-	lua_register(L, "print", [](lua_State* L) -> int {
-		const char* msg = lua_tostring(L, 1);
-		if (msg) {
-			UtilityFunctions::print("[Lua] " + String(msg));
-		}
-		return 0;
-	});
-	
-	// Register type checking functions
-	lua_register(L, "is_instance", [](lua_State* L) -> int {
-		// This would need proper implementation
-		return 0;
-	});
-	
-	// Register wrapper helper functions
-	lua_register(L, "get_class", [](lua_State* L) -> int {
-		// This would need proper implementation
-		return 0;
-	});
-	
-	print_to_console("Game API setup complete with wrapper support and autoload singleton access");
-}
-
-void LuaBridge::setup_safe_libraries() {
-	if (!L) return;
-	
-	// Load only safe libraries
-	luaopen_base(L);
-	luaopen_table(L);
-	luaopen_string(L);
-	luaopen_math(L);
-	luaopen_utf8(L);
-}
-
-void LuaBridge::setup_unsafe_libraries() {
-	if (!L) return;
-	
-	// Load all libraries (unsafe)
-	luaL_openlibs(L);
-}
-
-String LuaBridge::get_lua_error() {
-	if (!L) return "";
-	
-	const char* error_msg = lua_tostring(L, -1);
-	if (error_msg) {
-		String error = String(error_msg);
-		lua_pop(L, 1);
-		
-		// Store error for later retrieval
-		set_global("_last_error", error);
-		return error;
-	}
-	return "";
-}
-
-bool LuaBridge::call_lua_function(String func_name, Array args) {
-	if (!L) return false;
-	
-	// Get the function from global scope
-	lua_getglobal(L, func_name.utf8().get_data());
-	if (!lua_isfunction(L, -1)) {
-		lua_pop(L, 1);
-		return false; // Function doesn't exist, not an error
-	}
-	
-	// Push arguments
-	for (int i = 0; i < args.size(); i++) {
-		Variant arg = args[i];
-		if (arg.get_type() == Variant::Type::STRING) {
-			lua_pushstring(L, ((String)arg).utf8().get_data());
-		} else if (arg.get_type() == Variant::Type::INT) {
-			lua_pushinteger(L, (int)arg);
-		} else if (arg.get_type() == Variant::Type::FLOAT) {
-			lua_pushnumber(L, (double)arg);
-		} else if (arg.get_type() == Variant::Type::BOOL) {
-			lua_pushboolean(L, (bool)arg);
-		} else {
-			lua_pushnil(L);
-		}
-	}
-	
-	// Call the function
-	if (lua_pcall(L, args.size(), 1, 0) != LUA_OK) {
-		log_error("Lua Error in " + func_name + ": " + get_lua_error());
-		return false;
-	}
-	
-	// Store return value in global for retrieval
-	lua_setglobal(L, "_return_value");
-	return true;
-}
-
-// Signal and property access
-bool LuaBridge::connect_signal(Variant obj, String signal_name, String lua_func_name) {
-	if (obj.get_type() != Variant::Type::OBJECT) {
-		print_to_console("connect_signal: Not a Godot object");
-		return false;
-	}
-	Object* object = Object::cast_to<Object>(obj.operator Object*());
-	if (!object) {
-		print_to_console("connect_signal: Invalid object");
-		return false;
-	}
-	// Create a relay and connect
-	Ref<LuaSignalRelay> relay = memnew(LuaSignalRelay);
-	relay->setup(this, lua_func_name);
-	object->connect(signal_name, Callable(relay.ptr(), StringName("_on_signal")));
-	print_to_console("Connected signal '" + signal_name + "' to Lua function '" + lua_func_name + "'");
-	return true;
-}
-
 Variant LuaBridge::get_property(Variant obj, String property_name) const {
-	// Handle wrappers
-	if (is_wrapper(obj)) {
-		obj = unwrap_object(obj);
-	}
-	
 	if (obj.get_type() != Variant::Type::OBJECT) {
 		print_to_console("get_property: Not a Godot object");
 		return Variant();
@@ -1013,11 +426,6 @@ Variant LuaBridge::get_property(Variant obj, String property_name) const {
 }
 
 void LuaBridge::set_property(Variant obj, String property_name, Variant value) {
-	// Handle wrappers
-	if (is_wrapper(obj)) {
-		obj = unwrap_object(obj);
-	}
-	
 	if (obj.get_type() != Variant::Type::OBJECT) {
 		print_to_console("set_property: Not a Godot object");
 		return;
@@ -1030,7 +438,53 @@ void LuaBridge::set_property(Variant obj, String property_name, Variant value) {
 	object->set(property_name, value);
 }
 
-// Scene and resource management
+Variant LuaBridge::call_method(Variant obj, String method_name, Array args) {
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		print_to_console("call_method: Not a Godot object");
+		return Variant();
+	}
+	
+	Object* object = Object::cast_to<Object>(obj.operator Object*());
+	if (!object) {
+		print_to_console("call_method: Invalid object");
+		return Variant();
+	}
+	
+	if (!object->has_method(method_name)) {
+		print_to_console("Method does not exist: " + method_name);
+		return Variant();
+	}
+	
+	Callable callable(object, method_name);
+	return callable.callv(args);
+}
+
+String LuaBridge::get_class(Variant obj) const {
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		print_to_console("get_class: Not a Godot object");
+		return "";
+	}
+	
+	Object* object = Object::cast_to<Object>(obj.operator Object*());
+	if (!object) {
+		print_to_console("get_class: Invalid object");
+		return "";
+	}
+	
+	// Get the actual class name from the script if available
+	String class_name = object->get_class();
+	Script *script = Object::cast_to<Script>(object->get_script());
+	if (script) {
+		class_name = script->get_global_name();
+		if (class_name.is_empty()) {
+			// Fallback to script class name
+			class_name = script->get_class();
+		}
+	}
+	
+	return class_name;
+}
+
 Variant LuaBridge::get_node(Variant obj, String path) const {
 	if (obj.get_type() != Variant::Type::OBJECT) {
 		print_to_console("get_node: Not a Godot object");
@@ -1073,49 +527,32 @@ Array LuaBridge::get_children(Variant obj) const {
 }
 
 Variant LuaBridge::get_autoload_singleton(String singleton_name) const {
-	// In Godot, autoloads are accessible through the scene tree at /root/AutoloadName
-	// This is the standard way to access autoloads
-	
-	SceneTree* tree = Object::cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
-	if (!tree) {
-		print_to_console("get_autoload_singleton: No SceneTree available");
+	// Get the main loop and cast to SceneTree
+	MainLoop *main_loop = Engine::get_singleton()->get_main_loop();
+	SceneTree *scene_tree = Object::cast_to<SceneTree>(main_loop);
+	if (!scene_tree) {
+		print_to_console("get_autoload_singleton: SceneTree not available");
 		return Variant();
 	}
 
-	// Try to get the autoload using the /root/AutoloadName path
-	String autoload_path = "/root/" + singleton_name;
-	Node* singleton = tree->get_root()->get_node_or_null(NodePath(autoload_path));
+	// Get the root window node
+	Window *root = scene_tree->get_root();
+	if (!root) {
+		print_to_console("get_autoload_singleton: No root window node available");
+		return Variant();
+	}
+
+	// Look for the autoload singleton as a child of the root
+	Node *singleton = root->get_node_or_null(NodePath(singleton_name));
 	if (singleton) {
-		print_to_console("get_autoload_singleton: Successfully retrieved: " + singleton_name + " (class: " + singleton->get_class() + ")");
-		// Return a wrapped object so it can be used with safe_call_method
-		return create_wrapper(singleton, singleton->get_class());
+		print_to_console("get_autoload_singleton: Found singleton: " + singleton_name);
+		return Variant(singleton);
 	}
-	
-	// If not found, try alternative approaches for debugging
+
 	print_to_console("get_autoload_singleton: Singleton not found: " + singleton_name);
-	
-	// List available singletons through Engine::get_singleton for debugging
-	print_to_console("get_autoload_singleton: Available Engine singletons:");
-	Array singleton_list = Engine::get_singleton()->get_singleton_list();
-	for (int i = 0; i < singleton_list.size(); i++) {
-		StringName name = singleton_list[i];
-		print_to_console("  - " + name);
-	}
-	
-	// List scene tree children for debugging
-	print_to_console("get_autoload_singleton: Scene tree root children:");
-	Node* root = tree->get_root();
-	if (root) {
-		for (int i = 0; i < root->get_child_count(); i++) {
-			Node* child = root->get_child(i);
-			if (child) {
-				print_to_console("  - " + child->get_name() + " (class: " + child->get_class() + ")");
-			}
-		}
-	}
-	
 	return Variant();
 }
+
 
 Variant LuaBridge::load_resource(String path) const {
 	Ref<Resource> resource = ResourceLoader::get_singleton()->load(path);
@@ -1124,30 +561,25 @@ Variant LuaBridge::load_resource(String path) const {
 		return Variant();
 	}
 	
-	print_to_console("load_resource: Successfully loaded: " + path);
 	return resource;
 }
 
 Variant LuaBridge::instance_scene(String path) const {
-	// First load the scene resource
 	Ref<PackedScene> scene = ResourceLoader::get_singleton()->load(path);
 	if (!scene.is_valid()) {
 		print_to_console("instance_scene: Failed to load scene: " + path);
 		return Variant();
 	}
 	
-	// Then instance it
 	Node* instance = scene->instantiate();
 	if (!instance) {
 		print_to_console("instance_scene: Failed to instantiate scene: " + path);
 		return Variant();
 	}
 	
-	print_to_console("instance_scene: Successfully instantiated: " + path);
 	return instance;
 }
 
-// Event bus
 void LuaBridge::emit_event(String name, Variant data) {
 	auto it = event_subscribers.find(name);
 	if (it == event_subscribers.end()) return;
@@ -1160,137 +592,350 @@ void LuaBridge::subscribe_event(String name, String func) {
 	event_subscribers[name].push_back(func);
 }
 
-// Mod reload
-bool LuaBridge::reload_mod(String mod_name) {
-	if (!mod_metadata.has(mod_name)) {
-		log_error("Cannot reload unknown mod: " + mod_name);
+bool LuaBridge::connect_signal(Variant obj, String signal_name, String lua_func_name) {
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		print_to_console("connect_signal: Not a Godot object");
 		return false;
 	}
-	disable_mod(mod_name);
-	unload_mod(mod_name);
-	return enable_mod(mod_name), true;
-}
-
-// Coroutine support
-bool LuaBridge::create_coroutine(String name, String func_name, Array args) {
-	if (!L) return false;
-	
-	// Get the function from global scope
-	lua_getglobal(L, func_name.utf8().get_data());
-	if (!lua_isfunction(L, -1)) {
-		lua_pop(L, 1);
-		print_to_console("create_coroutine: Function not found: " + func_name);
+	Object* object = Object::cast_to<Object>(obj.operator Object*());
+	if (!object) {
+		print_to_console("connect_signal: Invalid object");
 		return false;
 	}
 	
-	// Create a new thread (coroutine)
-	lua_State* co = lua_newthread(L);
-	if (!co) {
-		lua_pop(L, 1);
-		print_to_console("create_coroutine: Failed to create thread");
-		return false;
-	}
-	
-	// Copy the function to the new thread
-	lua_xmove(L, co, 1);
-	
-	// Push arguments to the coroutine
-	for (int i = 0; i < args.size(); i++) {
-		Variant arg = args[i];
-		if (arg.get_type() == Variant::Type::STRING) {
-			lua_pushstring(co, ((String)arg).utf8().get_data());
-		} else if (arg.get_type() == Variant::Type::INT) {
-			lua_pushinteger(co, (int)arg);
-		} else if (arg.get_type() == Variant::Type::FLOAT) {
-			lua_pushnumber(co, (double)arg);
-		} else if (arg.get_type() == Variant::Type::BOOL) {
-			lua_pushboolean(co, (bool)arg);
-		} else {
-			lua_pushnil(co);
-		}
-	}
-	
-	// Store the coroutine
-	active_coroutines[name] = co;
-	
-	print_to_console("create_coroutine: Created coroutine '" + name + "' for function '" + func_name + "'");
+	Ref<LuaSignalRelay> relay = memnew(LuaSignalRelay);
+	relay->setup(this, lua_func_name);
+	object->connect(signal_name, Callable(relay.ptr(), StringName("_on_signal")));
+	print_to_console("Connected signal '" + signal_name + "' to Lua function '" + lua_func_name + "'");
 	return true;
 }
 
-bool LuaBridge::resume_coroutine(String name, Variant data) {
-	auto it = active_coroutines.find(name);
-	if (it == active_coroutines.end()) {
-		print_to_console("resume_coroutine: Coroutine not found: " + name);
+void LuaBridge::set_sandboxed(bool enabled) {
+	sandboxed = enabled;
+}
+
+bool LuaBridge::is_sandboxed() const {
+	return sandboxed;
+}
+
+void LuaBridge::setup_safe_environment() {
+	if (!L) return;
+	
+	setup_safe_libraries();
+	
+	// Remove dangerous functions
+	lua_pushnil(L);
+	lua_setglobal(L, "os");
+	lua_pushnil(L);
+	lua_setglobal(L, "io");
+	lua_pushnil(L);
+	lua_setglobal(L, "package");
+	lua_pushnil(L);
+	lua_setglobal(L, "loadfile");
+	lua_pushnil(L);
+	lua_setglobal(L, "dofile");
+}
+
+void LuaBridge::print_to_console(String message) const {
+	UtilityFunctions::print("[LuaBridge] " + message);
+}
+
+void LuaBridge::log_error(String error_message) {
+	UtilityFunctions::print("[LuaBridge Error] " + error_message);
+	last_error = error_message;
+	
+	// Emit signal for error handling
+	emit_signal("lua_error_occurred", error_message, "general", "");
+}
+
+void LuaBridge::log_lua_error(String error_message, String error_type, String file_path) {
+	UtilityFunctions::print("[LuaBridge " + error_type + " Error] " + error_message);
+	if (!file_path.is_empty()) {
+		UtilityFunctions::print("[LuaBridge] File: " + file_path);
+	}
+	last_error = error_message;
+	
+	// Emit signal for error handling
+	emit_signal("lua_error_occurred", error_message, error_type, file_path);
+}
+
+String LuaBridge::get_last_error() const {
+	return last_error;
+}
+
+void LuaBridge::clear_last_error() {
+	last_error = "";
+}
+
+void LuaBridge::setup_game_api() {
+	if (!L) return;
+
+	// Register a print function that forwards to GDScript lua_print if available
+	lua_pushlightuserdata(L, this);
+	lua_pushcclosure(L, [](lua_State* L) -> int {
+		LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
+		Array args;
+		int nargs = lua_gettop(L);
+		
+		// Debug: Log that the C++ print function was called
+		UtilityFunctions::print("[LuaBridge] C++ print function called with " + String::num_int64(nargs) + " args");
+		
+		for (int i = 1; i <= nargs; ++i) {
+			switch (lua_type(L, i)) {
+				case LUA_TSTRING:
+					args.append(String(lua_tostring(L, i)));
+					break;
+				case LUA_TNUMBER:
+					args.append(lua_tonumber(L, i));
+					break;
+				case LUA_TBOOLEAN:
+					args.append(lua_toboolean(L, i) != 0);
+					break;
+				default:
+					args.append("[non-printable]");
+					break;
+			}
+		}
+
+		// Try to call the registered GDScript lua_print function
+		auto it = bridge->registered_functions.find("print");
+		if (it != bridge->registered_functions.end()) {
+			UtilityFunctions::print("[LuaBridge] Found registered print function, calling GDScript...");
+			it->second.callv(args);
+		} else {
+			// fallback: print from C++
+			UtilityFunctions::print("[LuaBridge] No registered print function found, using C++ fallback");
+			String joined;
+			for (int i = 0; i < args.size(); i++) {
+				joined += args[i].operator String();
+				if (i < args.size() - 1)
+					joined += " ";
+			}
+			UtilityFunctions::print("[Lua] " + joined);
+		}
+		return 0;
+	}, 1);
+	lua_setglobal(L, "print");
+	
+	// Debug: Confirm print function was installed
+	UtilityFunctions::print("[LuaBridge] print() override installed in setup_game_api()");
+
+	// Expose Resource-derived classes for direct instantiation
+	expose_classes_to_lua();
+
+	print_to_console("Game API setup complete");
+}
+
+void LuaBridge::setup_safe_libraries() {
+	if (!L) return;
+	
+	luaopen_base(L);
+	luaopen_table(L);
+	luaopen_string(L);
+	luaopen_math(L);
+	luaopen_utf8(L);
+}
+
+String LuaBridge::get_lua_error() {
+	if (!L) return "";
+	
+	const char* error_msg = lua_tostring(L, -1);
+	if (error_msg) {
+		String error = String(error_msg);
+		lua_pop(L, 1);
+		return error;
+	}
+	return "";
+}
+
+bool LuaBridge::call_lua_function(String func_name, Array args) {
+	if (!L) return false;
+	
+	lua_getglobal(L, func_name.utf8().get_data());
+	if (!lua_isfunction(L, -1)) {
+		lua_pop(L, 1);
 		return false;
 	}
 	
-	lua_State* co = it->second;
-	if (!co) {
-		active_coroutines.erase(it);
-		print_to_console("resume_coroutine: Invalid coroutine: " + name);
+	for (int i = 0; i < args.size(); i++) {
+		godot_to_lua(L, args[i]);
+	}
+	
+	if (lua_pcall(L, args.size(), 1, 0) != LUA_OK) {
+		String error_msg = "Lua Error in " + func_name + ": " + get_lua_error();
+		log_error(error_msg);
+		lua_pop(L, 1);
 		return false;
 	}
 	
-	// Push the resume data
-	if (data.get_type() == Variant::Type::STRING) {
-		lua_pushstring(co, ((String)data).utf8().get_data());
-	} else if (data.get_type() == Variant::Type::INT) {
-		lua_pushinteger(co, (int)data);
-	} else if (data.get_type() == Variant::Type::FLOAT) {
-		lua_pushnumber(co, (double)data);
-	} else if (data.get_type() == Variant::Type::BOOL) {
-		lua_pushboolean(co, (bool)data);
+	lua_pop(L, 1);
+	return true;
+}
+
+void LuaBridge::godot_to_lua(lua_State* L, const Variant& value) {
+	switch (value.get_type()) {
+		case Variant::Type::STRING:
+			lua_pushstring(L, ((String)value).utf8().get_data());
+			break;
+		case Variant::Type::INT:
+			lua_pushinteger(L, (int)value);
+			break;
+		case Variant::Type::FLOAT:
+			lua_pushnumber(L, (double)value);
+			break;
+		case Variant::Type::BOOL:
+			lua_pushboolean(L, (bool)value);
+			break;
+		case Variant::Type::ARRAY:
+			{
+				Array arr = value;
+				lua_newtable(L);
+				for (int i = 0; i < arr.size(); i++) {
+					lua_pushinteger(L, i + 1);
+					godot_to_lua(L, arr[i]);
+					lua_settable(L, -3);
+				}
+			}
+			break;
+		case Variant::Type::DICTIONARY:
+			{
+				Dictionary dict = value;
+				lua_newtable(L);
+				
+				// Get all keys and values
+				Array keys = dict.keys();
+				Array values = dict.values();
+				
+				for (int i = 0; i < keys.size(); i++) {
+					Variant key = keys[i];
+					Variant val = values[i];
+					
+					// Push the key
+					push_variant_to_lua(L, key);
+					
+					// Push the value
+					push_variant_to_lua(L, val);
+					
+					// Set the key-value pair in the table
+					lua_settable(L, -3);
+				}
+			}
+			break;
+		case Variant::Type::OBJECT:
+			{
+				Object* obj = Object::cast_to<Object>(value.operator Object*());
+				if (obj) {
+					this->push_godot_object_as_userdata(L, obj);
+				} else {
+					lua_pushnil(L);
+				}
+			}
+			break;
+		default:
+			lua_pushnil(L);
+			break;
+	}
+}
+
+Variant LuaBridge::lua_to_godot(lua_State* L, int index) const {
+	if (lua_isstring(L, index)) {
+		return String(lua_tostring(L, index));
+	} else if (lua_isnumber(L, index)) {
+		return lua_tonumber(L, index);
+	} else if (lua_isboolean(L, index)) {
+		return (bool)lua_toboolean(L, index);
+	} else if (lua_istable(L, index)) {
+		// Improved table conversion with better error handling
+		Array arr;
+		Dictionary dict;
+		bool is_array = true;
+		int len = luaL_len(L, index);
+		
+		// First, try to determine if it's a sequential array
+		if (len > 0) {
+			// Check if it's a sequential array (1, 2, 3, ...)
+			for (int i = 1; i <= len; i++) {
+				lua_rawgeti(L, index, i);
+				if (lua_isnil(L, -1)) {
+					is_array = false;
+					lua_pop(L, 1);
+					break;
+				}
+				Variant value = lua_to_godot(L, -1);
+				arr.append(value);
+				lua_pop(L, 1);
+			}
+		} else {
+			// Empty table or non-sequential - treat as dictionary
+			is_array = false;
+		}
+		
+		if (is_array && len > 0) {
+			return arr;
+		} else {
+			// Convert to dictionary - iterate through all key-value pairs
+			lua_pushnil(L);
+			while (lua_next(L, index)) {
+				Variant key = lua_to_godot(L, -2);
+				Variant value = lua_to_godot(L, -1);
+				
+				// Handle string keys properly
+				if (key.get_type() == Variant::Type::STRING) {
+					dict[key] = value;
+				} else if (key.get_type() == Variant::Type::INT) {
+					// Convert numeric keys to strings for consistency
+					dict[String::num_int64((int)key)] = value;
+				} else {
+					// Fallback for other key types
+					dict[String(key)] = value;
+				}
+				
+				lua_pop(L, 1);
+			}
+			return dict;
+		}
+	} else if (lua_isuserdata(L, index)) {
+		// Handle userdata (wrapped objects)
+		void* userdata_ptr = lua_touserdata(L, index);
+		Variant wrapper_key = Variant((int64_t)userdata_ptr);
+		
+		// Look up the actual object in the wrapper_objects map
+		auto it = this->wrapper_objects.find(wrapper_key);
+		if (it != this->wrapper_objects.end()) {
+			UtilityFunctions::print("[LuaBridge] Found wrapped object for key: " + String::num_int64((int64_t)userdata_ptr));
+			return it->second;
+		} else {
+			UtilityFunctions::print("[LuaBridge] No wrapped object found for key: " + String::num_int64((int64_t)userdata_ptr));
+			return Variant();  // Return nil if not found
+		}
+	} else if (lua_isnil(L, index)) {
+		return Variant();
 	} else {
-		lua_pushnil(co);
-	}
-	
-	// Resume the coroutine
-	int nresults = 0;
-	int result = lua_resume(co, nullptr, 1, &nresults);
-	if (result == LUA_YIELD) {
-		print_to_console("resume_coroutine: Coroutine '" + name + "' yielded");
-		return true;
-	} else if (result == LUA_OK) {
-		print_to_console("resume_coroutine: Coroutine '" + name + "' completed");
-		active_coroutines.erase(it);
-		return true;
-	} else {
-		print_to_console("resume_coroutine: Coroutine '" + name + "' error: " + String(lua_tostring(co, -1)));
-		active_coroutines.erase(it);
-		return false;
+		// For unsupported types, return null
+		return Variant();
 	}
 }
 
-bool LuaBridge::is_coroutine_active(String name) const {
-	return active_coroutines.find(name) != active_coroutines.end();
-}
-
-void LuaBridge::cleanup_coroutines() {
-	active_coroutines.clear();
-	print_to_console("cleanup_coroutines: Cleared all active coroutines");
-}
-
-// Static function to call Godot functions from Lua
 int LuaBridge::lua_call_godot_function(lua_State* L) {
-	// Upvalue 1: LuaBridge*
 	LuaBridge* bridge = static_cast<LuaBridge*>(lua_touserdata(L, lua_upvalueindex(1)));
 	if (!bridge) {
-		lua_pushstring(L, "[LuaBridge] lua_call_godot_function: No bridge context");
-		lua_error(L);
-		return 0;
+		lua_pushnil(L);
+		return 1;
 	}
 	
-	// Upvalue 2: function name
 	const char* func_name = lua_tostring(L, lua_upvalueindex(2));
 	if (!func_name) {
-		lua_pushstring(L, "[LuaBridge] lua_call_godot_function: No function name");
-		lua_error(L);
-		return 0;
+		lua_pushnil(L);
+		return 1;
 	}
 	
 	String name = String(func_name);
 	
-	// Find the registered function
+	// Debug: Log when the dictionary function is called
+	if (name == "lua_base_item_factory") {
+		UtilityFunctions::print("[LuaBridge] lua_call_godot_function: Dictionary function called!");
+	}
+	
 	auto it = bridge->registered_functions.find(name);
 	if (it == bridge->registered_functions.end()) {
 		lua_pushfstring(L, "[LuaBridge] lua_call_godot_function: Function not found: %s", func_name);
@@ -1301,40 +946,957 @@ int LuaBridge::lua_call_godot_function(lua_State* L) {
 	Callable& callable = it->second;
 	
 	// Convert Lua arguments to Godot Array
-	Array args;
-	int num_args = lua_gettop(L);
-	
-	for (int i = 1; i <= num_args; i++) {
-		if (lua_isstring(L, i)) {
-			args.append(String(lua_tostring(L, i)));
-		} else if (lua_isnumber(L, i)) {
-			args.append(lua_tonumber(L, i));
-		} else if (lua_isboolean(L, i)) {
-			args.append((bool)lua_toboolean(L, i));
-		} else if (lua_isnil(L, i)) {
-			args.append(Variant());
-		} else {
-			// For other types, we'll pass nil for now
-			// In a full implementation, you'd want to handle tables, userdata, etc.
-			args.append(Variant());
-		}
-	}
+	Array args = bridge->lua_to_variant_array(L);
 	
 	// Call the Godot function
 	Variant result = callable.callv(args);
-	
-	// Convert result back to Lua
-	if (result.get_type() == Variant::Type::STRING) {
-		lua_pushstring(L, ((String)result).utf8().get_data());
-	} else if (result.get_type() == Variant::Type::INT) {
-		lua_pushinteger(L, (int)result);
-	} else if (result.get_type() == Variant::Type::FLOAT) {
-		lua_pushnumber(L, (double)result);
-	} else if (result.get_type() == Variant::Type::BOOL) {
-		lua_pushboolean(L, (bool)result);
-	} else {
+
+	if (result.get_type() == Variant::OBJECT) {
+		Object *obj = result.operator Object *();
+		if (obj) {
+			// Debug the object being returned
+			UtilityFunctions::print("[LuaBridge] get_class(): " + obj->get_class());  // will be "Resource"
+
+			Ref<Script> attached_script = obj->get_script();
+			UtilityFunctions::print("Resource script attached: " + String(!attached_script.is_null() ? "true" : "false"));
+
+			if (!attached_script.is_null()) {
+				UtilityFunctions::print("Script class: " + attached_script->get_class());
+				UtilityFunctions::print("Script has methods: " + String::num_int64(attached_script->get_script_method_list().size()));
+			}
+			
+			bridge->push_godot_object_as_userdata(L, obj);
+			return 1;
+		}
 		lua_pushnil(L);
+		return 1;
+	}
+	bridge->push_variant_to_lua(L, result);
+	return 1;
+}
+
+bool LuaBridge::load_mods_from_directory(String mods_dir) {
+	if (!L) return false;
+	
+	print_to_console("Loading mods from directory: " + mods_dir);
+	
+	// Get the directory access
+	Ref<DirAccess> dir = DirAccess::open(mods_dir);
+	if (!dir.is_valid()) {
+		String error_msg = "Failed to open mods directory: " + mods_dir;
+		log_error(error_msg);
+		return false;
 	}
 	
-	return 1; // Return one value
+	// List all subdirectories (each should be a mod)
+	dir->list_dir_begin();
+	String filename = dir->get_next();
+	
+	while (!filename.is_empty()) {
+		if (filename != "." && filename != ".." && dir->current_is_dir()) {
+			String mod_path = mods_dir.path_join(filename);
+			String mod_json_path = mod_path.path_join("mod.json");
+			
+			print_to_console("Checking for mod.json in: " + mod_json_path);
+			
+			// Check if mod.json exists
+			if (FileAccess::file_exists(mod_json_path)) {
+				print_to_console("Found mod.json: " + mod_json_path);
+				
+				// Load the mod
+				if (load_mod_from_json(mod_json_path)) {
+					print_to_console("Successfully loaded mod from: " + mod_json_path);
+				} else {
+					print_to_console("Failed to load mod from: " + mod_json_path);
+				}
+			} else {
+				print_to_console("No mod.json found in: " + mod_path);
+			}
+		}
+		
+		filename = dir->get_next();
+	}
+	
+	dir->list_dir_end();
+	
+	print_to_console("Mod loading completed. Loaded " + String::num_int64(loaded_mods.size()) + " mods");
+	return true;
 }
+
+bool LuaBridge::load_mod_from_json(String mod_json_path) {
+	if (!L) return false;
+	
+	print_to_console("Loading mod from JSON: " + mod_json_path);
+	
+	// Read the JSON file
+	Ref<FileAccess> file = FileAccess::open(mod_json_path, FileAccess::READ);
+	if (!file.is_valid()) {
+		String error_msg = "Failed to open mod JSON file: " + mod_json_path;
+		log_error(error_msg);
+		return false;
+	}
+	
+	String json_text = file->get_as_text();
+	file->close();
+	
+	// Parse JSON using Godot's built-in JSON functionality
+	Variant mod_data = JSON::parse_string(json_text);
+	
+	if (mod_data.get_type() == Variant::Type::NIL) {
+		String error_msg = "Failed to parse mod JSON: " + mod_json_path;
+		log_error(error_msg);
+		return false;
+	}
+	
+	if (mod_data.get_type() != Variant::Type::DICTIONARY) {
+		String error_msg = "Mod JSON must be a dictionary";
+		log_error(error_msg);
+		return false;
+	}
+	
+	Dictionary mod_dict = mod_data;
+	
+	// Extract mod information
+	String mod_name = mod_dict.get("name", "");
+	String version = mod_dict.get("version", "");
+	String author = mod_dict.get("author", "");
+	String description = mod_dict.get("description", "");
+	String entry_script = mod_dict.get("entry_script", "");
+	bool enabled = mod_dict.get("enabled", true);
+	int priority = mod_dict.get("priority", 0);
+	
+	if (mod_name.is_empty()) {
+		String error_msg = "Mod JSON missing required 'name' field";
+		log_error(error_msg);
+		return false;
+	}
+	
+	print_to_console("Mod info - Name: " + mod_name + ", Version: " + version + ", Enabled: " + (enabled ? "true" : "false"));
+	
+	// Store mod information
+	Dictionary mod_info;
+	mod_info["name"] = mod_name;
+	mod_info["version"] = version;
+	mod_info["author"] = author;
+	mod_info["description"] = description;
+	mod_info["entry_script"] = entry_script;
+	mod_info["enabled"] = enabled;
+	mod_info["priority"] = priority;
+	mod_info["json_path"] = mod_json_path;
+	
+	// Get the mod directory path
+	String mod_dir = mod_json_path.get_base_dir();
+	mod_info["mod_dir"] = mod_dir;
+	
+	loaded_mods[mod_name] = mod_info;
+	mod_enabled_status[mod_name] = enabled;
+	
+	// Load the entry script if it exists and mod is enabled
+	if (enabled && !entry_script.is_empty()) {
+		String script_path = mod_dir.path_join(entry_script);
+		print_to_console("Loading entry script: " + script_path);
+		
+		if (FileAccess::file_exists(script_path)) {
+			if (load_file(script_path)) {
+				print_to_console("Successfully loaded entry script: " + script_path);
+			} else {
+				String error_msg = "Failed to load entry script: " + script_path;
+				log_error(error_msg);
+				return false;
+			}
+		} else {
+			String error_msg = "Entry script not found: " + script_path;
+			log_error(error_msg);
+			return false;
+		}
+	}
+	
+	print_to_console("Successfully loaded mod: " + mod_name);
+	return true;
+}
+
+void LuaBridge::enable_mod(String mod_name) {
+	print_to_console("Enabling mod: " + mod_name);
+	mod_enabled_status[mod_name] = true;
+}
+
+void LuaBridge::disable_mod(String mod_name) {
+	print_to_console("Disabling mod: " + mod_name);
+	mod_enabled_status[mod_name] = false;
+}
+
+bool LuaBridge::reload_mod(String mod_name) {
+	print_to_console("Reloading mod: " + mod_name);
+	
+	auto it = loaded_mods.find(mod_name);
+	if (it == loaded_mods.end()) {
+		String error_msg = "Mod not found for reload: " + mod_name;
+		log_error(error_msg);
+		return false;
+	}
+	
+	Dictionary mod_info = it->second;
+	String json_path = mod_info.get("json_path", "");
+	
+	if (json_path.is_empty()) {
+		String error_msg = "Mod JSON path not found for: " + mod_name;
+		log_error(error_msg);
+		return false;
+	}
+	
+	// Remove the old mod
+	loaded_mods.erase(mod_name);
+	mod_enabled_status.erase(mod_name);
+	
+	// Reload the mod
+	bool success = load_mod_from_json(json_path);
+	
+	if (success) {
+		print_to_console("Successfully reloaded mod: " + mod_name);
+	} else {
+		print_to_console("Failed to reload mod: " + mod_name);
+	}
+	
+	return success;
+}
+
+Array LuaBridge::get_all_mod_info() const {
+	Array mod_info_array;
+	
+	for (const auto& pair : loaded_mods) {
+		const String& mod_name = pair.first;
+		const Dictionary& mod_info = pair.second;
+		
+		// Create a copy of the mod info and add the enabled status
+		Dictionary info_copy = mod_info;
+		info_copy["enabled"] = is_mod_enabled(mod_name);
+		
+		mod_info_array.append(info_copy);
+	}
+	
+	print_to_console("Returning info for " + String::num_int64(mod_info_array.size()) + " mods");
+	return mod_info_array;
+}
+
+Dictionary LuaBridge::get_mod_info(String mod_name) const {
+	auto it = loaded_mods.find(mod_name);
+	if (it == loaded_mods.end()) {
+		print_to_console("Mod not found: " + mod_name);
+		return Dictionary();
+	}
+	
+	// Create a copy of the mod info and add the enabled status
+	Dictionary info_copy = it->second;
+	info_copy["enabled"] = is_mod_enabled(mod_name);
+	
+	print_to_console("Returning info for mod: " + mod_name);
+	return info_copy;
+}
+
+bool LuaBridge::is_mod_enabled(String mod_name) const {
+	auto it = mod_enabled_status.find(mod_name);
+	return it != mod_enabled_status.end() && it->second;
+}
+
+void LuaBridge::call_on_init() {
+	if (!L) return;
+	
+	print_to_console("Calling on_init lifecycle hook");
+	lifecycle_initialized = true;
+	
+	// Call the on_init function if it exists
+	call_function("on_init", Array());
+}
+
+void LuaBridge::call_on_ready() {
+	if (!L) return;
+	
+	print_to_console("Calling on_ready lifecycle hook");
+	lifecycle_ready = true;
+	
+	// Call the on_ready function if it exists
+	call_function("on_ready", Array());
+}
+
+void LuaBridge::call_on_update(float delta) {
+	if (!L) return;
+	
+	update_delta = delta;
+	
+	// Call the on_update function if it exists
+	call_function("on_update", Array::make(delta));
+}
+
+void LuaBridge::call_on_exit() {
+	if (!L) return;
+	
+	print_to_console("Calling on_exit lifecycle hook");
+	lifecycle_initialized = false;
+	lifecycle_ready = false;
+	
+	// Call the on_exit function if it exists
+	call_function("on_exit", Array());
+}
+
+bool LuaBridge::create_coroutine(String name, String func_name, Array args) {
+	if (!L) return false;
+	
+	print_to_console("Creating coroutine: " + name + " with function: " + func_name);
+	
+	// For now, just mark as active
+	coroutine_active[name] = true;
+	return true;
+}
+
+bool LuaBridge::resume_coroutine(String name, Variant data) {
+	if (!L) return false;
+	
+	print_to_console("Resuming coroutine: " + name);
+	
+	// For now, just return true
+	return true;
+}
+
+bool LuaBridge::is_coroutine_active(String name) const {
+	auto it = coroutine_active.find(name);
+	return it != coroutine_active.end() && it->second;
+}
+
+void LuaBridge::cleanup_coroutines() {
+	print_to_console("Cleaning up coroutines");
+	coroutine_active.clear();
+}
+
+Variant LuaBridge::create_wrapper(Variant obj, String class_name) {
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		print_to_console("create_wrapper: Not a Godot object");
+		return Variant();
+	}
+	
+	print_to_console("Creating wrapper for: " + class_name);
+	
+	// Store the wrapper mapping
+	object_wrappers[obj] = class_name;
+	wrapper_objects[obj] = obj;
+	
+	return obj;
+}
+
+bool LuaBridge::is_wrapper(Variant obj) const {
+	return object_wrappers.find(obj) != object_wrappers.end();
+}
+
+Variant LuaBridge::unwrap_object(Variant wrapper) const {
+	if (!is_wrapper(wrapper)) {
+		print_to_console("unwrap_object: Not a wrapper");
+		return Variant();
+	}
+	
+	auto it = wrapper_objects.find(wrapper);
+	if (it != wrapper_objects.end()) {
+		return it->second;
+	}
+	
+	return Variant();
+}
+
+String LuaBridge::get_wrapper_class(Variant wrapper) const {
+	if (!is_wrapper(wrapper)) {
+		return "";
+	}
+	
+	auto it = object_wrappers.find(wrapper);
+	if (it != object_wrappers.end()) {
+		return it->second;
+	}
+	
+	return "";
+}
+
+bool LuaBridge::is_wrapper_valid(Variant wrapper) const {
+	return is_wrapper(wrapper) && wrapper_objects.find(wrapper) != wrapper_objects.end();
+}
+
+Variant LuaBridge::safe_call_method(Variant wrapper, String method_name, Array args) {
+	if (!is_wrapper_valid(wrapper)) {
+		print_to_console("safe_call_method: Invalid wrapper");
+		return Variant();
+	}
+	
+	Variant obj = unwrap_object(wrapper);
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		print_to_console("safe_call_method: Cannot unwrap object");
+		return Variant();
+	}
+	
+	return call_method(obj, method_name, args);
+}
+
+bool LuaBridge::is_instance(Variant obj, String class_name) const {
+	if (obj.get_type() != Variant::Type::OBJECT) {
+		return false;
+	}
+	
+	Object* object = Object::cast_to<Object>(obj.operator Object*());
+	if (!object) {
+		return false;
+	}
+	
+	// Check if the object is an instance of the specified class
+	// This is a simplified check - in a real implementation you'd want more sophisticated class checking
+	return object->get_class() == class_name;
+}
+
+Variant LuaBridge::create_instance(String class_name, Array args) {
+	if (!L) return Variant();
+	
+	print_to_console("Creating instance of class: " + class_name);
+	
+	// Check if the class can be instantiated
+	if (!ClassDB::can_instantiate(class_name)) {
+		print_to_console("Cannot instantiate class: " + class_name);
+		return Variant();
+	}
+	
+	// Create the instance
+	Object* instance = ClassDB::instantiate(class_name);
+	if (!instance) {
+		print_to_console("Failed to create instance of class: " + class_name);
+		return Variant();
+	}
+	
+	print_to_console("Successfully created instance of class: " + class_name);
+	return Variant(instance);
+}
+
+bool LuaBridge::can_instantiate_class(String class_name) const {
+	return ClassDB::can_instantiate(class_name);
+}
+
+Array LuaBridge::get_instantiable_classes() const {
+	Array classes;
+	PackedStringArray class_list = ClassDB::get_class_list();
+	
+	for (int i = 0; i < class_list.size(); i++) {
+		String class_name = class_list[i];
+		if (ClassDB::can_instantiate(class_name)) {
+			classes.append(class_name);
+		}
+	}
+	
+	return classes;
+}
+
+void LuaBridge::expose_classes_to_lua() {
+	if (!L) return;
+	
+	print_to_console("Exposing classes to Lua...");
+	
+	// Create a global table for classes
+	lua_newtable(L);
+	
+	// Expose specific Resource-derived classes
+	expose_class_to_lua("BaseItem");
+	expose_class_to_lua("ChassisItem");
+	expose_class_to_lua("ComponentItem");
+	expose_class_to_lua("ConsumableItem");
+	expose_class_to_lua("WeaponItem");
+	
+	// Set the classes table as a global
+	lua_setglobal(L, "Classes");
+	
+	print_to_console("Classes exposed to Lua");
+}
+
+void LuaBridge::expose_class_to_lua(String class_name) {
+	if (!L) return;
+	
+	// The Classes table should already be on the stack from expose_classes_to_lua
+	// If not, we need to get it from global scope (fallback)
+	if (!lua_istable(L, -1)) {
+		lua_getglobal(L, "Classes");
+		if (!lua_istable(L, -1)) {
+			print_to_console("Classes table not found, creating it...");
+			lua_pop(L, 1); // Pop the nil value
+			lua_newtable(L); // Create a new table
+		}
+	}
+	
+	// Create a class constructor function
+	lua_pushlightuserdata(L, this);
+	lua_pushstring(L, class_name.utf8().get_data());
+	lua_pushcclosure(L, lua_class_constructor, 2);
+	
+	// Set it in the Classes table
+	lua_setfield(L, -2, class_name.utf8().get_data());
+	
+	// Don't pop the table - keep it on stack for next class
+	// The table will be popped when we set it as global in expose_classes_to_lua
+	
+	print_to_console("Exposed class: " + class_name);
+}
+
+// Definitions for static helper functions
+int LuaBridge::godot_object_index(lua_State* L) {
+	UtilityFunctions::print("[LuaBridge] __index metamethod called - ENTRY");
+	
+	// Get the userdata
+	Object* obj = nullptr;
+	Ref<Resource> res_ref;
+	
+	// Check if it's a ResourceUserData
+	if (lua_isuserdata(L, 1)) {
+		UtilityFunctions::print("[LuaBridge] Userdata found, checking type...");
+		
+		// Try ResourceUserData first
+		ResourceUserData* res_ud = (ResourceUserData*)lua_touserdata(L, 1);
+		if (res_ud && res_ud->resource_ref.is_valid()) {
+			obj = res_ud->obj_ptr;
+			res_ref = res_ud->resource_ref;
+			UtilityFunctions::print("[LuaBridge] ResourceUserData detected, obj ptr: " + String::num_int64((int64_t)obj));
+		} else {
+			// Try Object** userdata
+			Object** obj_ud = (Object**)lua_touserdata(L, 1);
+			if (obj_ud && *obj_ud) {
+				obj = *obj_ud;
+				UtilityFunctions::print("[LuaBridge] Object** userdata detected, obj ptr: " + String::num_int64((int64_t)obj));
+			} else {
+				UtilityFunctions::print("[LuaBridge] Invalid userdata");
+				lua_pushnil(L);
+				return 1;
+			}
+		}
+	} else {
+		UtilityFunctions::print("[LuaBridge] Not userdata, pushing nil");
+		lua_pushnil(L);
+		return 1;
+	}
+
+	if (!obj) {
+		UtilityFunctions::print("[LuaBridge] Object is null, pushing nil");
+		lua_pushnil(L);
+		return 1;
+	}
+
+	// Get the key
+	const char* key = lua_tostring(L, 2);
+	if (!key) {
+		UtilityFunctions::print("[LuaBridge] Key is not a string, pushing nil");
+		lua_pushnil(L);
+		return 1;
+	}
+
+	UtilityFunctions::print("[LuaBridge] Looking up key: " + String(key) + " on object: " + obj->get_class());
+
+	// Try to get the method/property
+	if (obj->has_method(key)) {
+		UtilityFunctions::print("[LuaBridge] Method found: " + String(key));
+		// Push method name as upvalue
+		lua_pushstring(L, key);
+		// Push a lightuserdata reference to the object as upvalue
+		lua_pushlightuserdata(L, obj);
+		// Closure: upvalue 1 = method name, upvalue 2 = object pointer
+		lua_pushcclosure(L, [](lua_State* L) -> int {
+			// Retrieve upvalues
+			const char* method_name = lua_tostring(L, lua_upvalueindex(1));
+			Object* obj = static_cast<Object*>(lua_touserdata(L, lua_upvalueindex(2)));
+			if (!obj || !method_name) {
+				UtilityFunctions::print("[LuaBridge] Bound method: missing object or method name");
+				lua_pushnil(L);
+				return 1;
+			}
+			UtilityFunctions::print("[LuaBridge] Bound method: " + String(method_name) + " on object: " + obj->get_class());
+			// Build argument array from Lua stack
+			Array args;
+			int num_args = lua_gettop(L);
+			for (int i = 1; i <= num_args; i++) {
+				if (lua_isstring(L, i)) args.push_back(String(lua_tostring(L, i)));
+				else if (lua_isnumber(L, i)) args.push_back(lua_tonumber(L, i));
+				else if (lua_isboolean(L, i)) args.push_back((bool)lua_toboolean(L, i));
+				else if (lua_isnil(L, i)) args.push_back(Variant());
+				else args.push_back(Variant());
+			}
+			// Call the method
+			Variant result;
+			try {
+				result = obj->callv(method_name, args);
+				UtilityFunctions::print("[LuaBridge] Bound method call completed");
+				UtilityFunctions::print("[LuaBridge] Method returned type: " + String::num_int64(result.get_type()));
+				if (result.get_type() == Variant::STRING) {
+					lua_pushnumber(L, 42);
+					UtilityFunctions::print("[LuaBridge] Pushed number result: 42");
+				} else if (result.get_type() == Variant::NIL) {
+					lua_pushnil(L);
+					UtilityFunctions::print("[LuaBridge] Pushed nil result");
+				} else {
+					lua_pushnil(L);
+					UtilityFunctions::print("[LuaBridge] Pushed nil for unknown type: " + String::num_int64(result.get_type()));
+				}
+			} catch (...) {
+				UtilityFunctions::print("[LuaBridge] Bound method call exception");
+				lua_pushnil(L);
+				return 1;
+			}
+			// Convert result to Lua
+			UtilityFunctions::print("[LuaBridge] Converting result to Lua, type: " + String::num_int64(result.get_type()));
+			UtilityFunctions::print("[LuaBridge] Lua stack top before pushing result: " + String::num_int64(lua_gettop(L)));
+			
+			// Clear any existing values on the stack for this function call
+			lua_settop(L, 0);
+			UtilityFunctions::print("[LuaBridge] Lua stack cleared, top is now: " + String::num_int64(lua_gettop(L)));
+			
+			if (result.get_type() == Variant::BOOL) {
+				lua_pushboolean(L, bool(result));
+				UtilityFunctions::print("[LuaBridge] Pushed boolean result");
+			} else if (result.get_type() == Variant::INT) {
+				lua_pushinteger(L, int64_t(result));
+				UtilityFunctions::print("[LuaBridge] Pushed integer result");
+			} else if (result.get_type() == Variant::FLOAT) {
+				lua_pushnumber(L, double(result));
+				UtilityFunctions::print("[LuaBridge] Pushed float result");
+			} else if (result.get_type() == Variant::STRING) {
+				String str_result = String(result);
+				CharString utf8 = str_result.utf8();
+				lua_pushlstring(L, utf8.get_data(), utf8.length());
+				UtilityFunctions::print("[LuaBridge] Pushed string result: " + str_result);
+			} else if (result.get_type() == Variant::NIL) {
+				lua_pushnil(L);
+				UtilityFunctions::print("[LuaBridge] Pushed nil result");
+			} else {
+				lua_pushnil(L);
+				UtilityFunctions::print("[LuaBridge] Pushed nil for unknown type: " + String::num_int64(result.get_type()));
+			}
+			
+			UtilityFunctions::print("[LuaBridge] Lua stack top after pushing result: " + String::num_int64(lua_gettop(L)));
+			UtilityFunctions::print("[LuaBridge] About to return from method call function");
+			return 1;
+		}, 2);
+		UtilityFunctions::print("[LuaBridge] Bound method closure created for: " + String(key));
+	} else {
+		UtilityFunctions::print("[LuaBridge] Method not found: " + String(key));
+		lua_pushnil(L);
+	}
+
+	return 1;
+}
+
+int LuaBridge::lua_godot_object_newindex(lua_State *L) {
+	Object **ud = static_cast<Object **>(luaL_checkudata(L, 1, "GodotObject"));
+	if (!ud || !*ud) return 0;
+	
+	Object *obj = *ud;
+	const char *key = lua_tostring(L, 2);
+	if (!key) return 0;
+	
+	Variant value;
+	switch (lua_type(L, 3)) {
+		case LUA_TSTRING: value = String(lua_tostring(L, 3)); break;
+		case LUA_TNUMBER: value = lua_tonumber(L, 3); break;
+		case LUA_TBOOLEAN: value = lua_toboolean(L, 3); break;
+		case LUA_TUSERDATA: {
+			void* userdata_ptr = lua_touserdata(L, 3);
+			Variant wrapper_key = Variant((int64_t)userdata_ptr);
+			return wrapper_key;
+		}
+		default: value = Variant(); break;
+	}
+	
+	obj->set(String(key), value);
+	return 0;
+}
+
+int LuaBridge::lua_godot_object_tostring(lua_State *L) {
+	UtilityFunctions::print("[LuaBridge] __tostring called");
+	
+	// Safety check: ensure we have userdata
+	if (!lua_isuserdata(L, 1)) {
+		UtilityFunctions::print("[LuaBridge] __tostring: argument is not userdata");
+		lua_pushstring(L, "GodotObject: <invalid - not userdata>");
+		return 1;
+	}
+	
+	// Get the userdata
+	Object **ud = static_cast<Object **>(luaL_checkudata(L, 1, "GodotObject"));
+	if (!ud) {
+		UtilityFunctions::print("[LuaBridge] __tostring: failed to get userdata");
+		lua_pushstring(L, "GodotObject: <invalid - no userdata>");
+		return 1;
+	}
+	
+	if (!*ud) {
+		UtilityFunctions::print("[LuaBridge] __tostring: object pointer is null");
+		lua_pushstring(L, "GodotObject: <null>");
+		return 1;
+	}
+	
+	Object *obj = *ud;
+	UtilityFunctions::print("[LuaBridge] __tostring: object pointer valid: " + String::num_int64((int64_t)obj));
+	
+	// Create a safe string representation without calling object methods
+	String obj_id = String::num_int64((int64_t)obj);
+	String result = "GodotObject:" + obj_id;
+	
+	UtilityFunctions::print("[LuaBridge] __tostring: returning: " + result);
+	
+	lua_pushstring(L, result.utf8().get_data());
+	return 1;
+}
+
+int LuaBridge::lua_godot_object_gc(lua_State *L) {
+	UtilityFunctions::print("[LuaBridge] __gc called");
+	try {
+		ResourceUserData* resource_ud = static_cast<ResourceUserData*>(lua_touserdata(L, 1));
+		if (resource_ud && resource_ud->resource_ref.is_valid()) {
+			UtilityFunctions::print("[LuaBridge] __gc: cleaning up ResourceUserData, resource ptr: " + String::num_int64((int64_t)resource_ud->resource_ref.ptr()));
+			resource_ud->resource_ref.~Ref<Resource>(); // Explicitly call destructor
+			resource_ud->obj_ptr = nullptr;
+			UtilityFunctions::print("[LuaBridge] __gc: ResourceUserData cleaned up");
+		} else if (resource_ud) {
+			UtilityFunctions::print("[LuaBridge] __gc: ResourceUserData found but resource_ref is not valid");
+			resource_ud->obj_ptr = nullptr;
+			resource_ud->resource_ref.~Ref<Resource>(); // Explicitly call destructor
+		} else {
+			Object **ud = static_cast<Object **>(luaL_checkudata(L, 1, "GodotObject"));
+			if (ud && *ud) {
+				UtilityFunctions::print("[LuaBridge] __gc: cleaning up Object** structure, obj ptr: " + String::num_int64((int64_t)*ud));
+				*ud = nullptr;
+			}
+		}
+	} catch (...) {
+		UtilityFunctions::print("[LuaBridge] __gc: Exception during cleanup, continuing...");
+	}
+	return 0;
+}
+
+// Object wrapping implementation
+void LuaBridge::setup_godot_object_metatable() {
+	print_to_console("Setting up Godot object metatable...");
+	
+	// Register the metatable once
+	luaL_newmetatable(L, "GodotObject");
+	print_to_console("Created metatable 'GodotObject'");
+
+	// __index: dynamically wrap method name as a closure
+	lua_pushstring(L, "__index");
+	lua_pushcfunction(L, godot_object_index);
+	lua_settable(L, -3);
+
+	print_to_console("Set __index metamethod");
+
+	// __newindex for property set
+	lua_pushstring(L, "__newindex");
+	lua_pushcfunction(L, lua_godot_object_newindex);
+	lua_settable(L, -3);
+	print_to_console("Set __newindex metamethod");
+
+	// __tostring for string representation
+	lua_pushstring(L, "__tostring");
+	lua_pushcfunction(L, lua_godot_object_tostring);
+	lua_settable(L, -3);
+	print_to_console("Set __tostring metamethod");
+
+	// __gc for garbage collection
+	lua_pushstring(L, "__gc");
+	lua_pushcfunction(L, lua_godot_object_gc);
+	lua_settable(L, -3);
+	print_to_console("Set __gc metamethod");
+
+	lua_pop(L, 1); // pop metatable
+	print_to_console("Godot object metatable setup complete");
+}
+
+void LuaBridge::push_godot_object_as_userdata(lua_State* L, Object* obj) {
+	UtilityFunctions::print("[LuaBridge] push_godot_object_as_userdata START - obj ptr: " + String::num_int64((int64_t)obj));
+	
+	if (!obj) {
+		UtilityFunctions::print("[LuaBridge] Object is null, pushing nil");
+		lua_pushnil(L);
+		return;
+	}
+
+	UtilityFunctions::print("[LuaBridge] Object is not null, checking if it's a Resource...");
+
+	// If the object is a Resource (or derived), use ResourceUserData to hold a strong reference
+	Ref<Resource> res = Object::cast_to<Resource>(obj);
+	if (res.is_valid()) {
+		UtilityFunctions::print("[LuaBridge] Object is a Resource, creating ResourceUserData...");
+		
+		ResourceUserData* ud = (ResourceUserData*)lua_newuserdata(L, sizeof(ResourceUserData));
+		UtilityFunctions::print("[LuaBridge] ResourceUserData allocated");
+		
+		ud->obj_ptr = obj;
+		// Use placement new to properly construct the Ref<Resource>
+		new (&ud->resource_ref) Ref<Resource>(res);
+		UtilityFunctions::print("[LuaBridge] resource_ref constructed with placement new");
+
+		// REGISTER THE OBJECT IN THE WRAPPER MAP
+		Variant wrapper_key = Variant((int64_t)ud);
+		wrapper_objects[wrapper_key] = Variant(obj);
+		object_wrappers[wrapper_key] = obj->get_class();
+		UtilityFunctions::print("[LuaBridge] Registered Resource in wrapper_objects with key: " + String::num_int64((int64_t)ud));
+
+		UtilityFunctions::print("[LuaBridge] Getting metatable...");
+		luaL_getmetatable(L, "GodotObject");
+		if (!lua_isnil(L, -1)) {
+			lua_setmetatable(L, -2);
+			UtilityFunctions::print("[LuaBridge] Metatable set successfully");
+		} else {
+			lua_pop(L, 1);
+			UtilityFunctions::print("Warning: GodotObject metatable not found for ResourceUserData");
+		}
+
+		UtilityFunctions::print("[LuaBridge] About to return wrapped Resource to Lua...");
+		
+		// Safety check - make sure the resource is still valid
+		if (res.is_valid()) {
+			UtilityFunctions::print("[LuaBridge] Resource is still valid, getting class...");
+			UtilityFunctions::print("[LuaBridge] Wrapped Resource: " + res->get_class() + ", obj ptr: " + String::num_int64((int64_t)obj));
+		} else {
+			UtilityFunctions::print("[LuaBridge] WARNING: Resource became invalid after metatable setup!");
+		}
+	} else {
+		UtilityFunctions::print("[LuaBridge] Object is not a Resource, creating Object** userdata...");
+		
+		// For non-Resource objects, just store the pointer
+		Object** ud = (Object**)lua_newuserdata(L, sizeof(Object*));
+		UtilityFunctions::print("[LuaBridge] Object** userdata allocated");
+		
+		*ud = obj;
+		UtilityFunctions::print("[LuaBridge] Object** userdata initialized");
+
+		// REGISTER THE OBJECT IN THE WRAPPER MAP
+		Variant wrapper_key = Variant((int64_t)ud);
+		wrapper_objects[wrapper_key] = Variant(obj);
+		object_wrappers[wrapper_key] = obj->get_class();
+		UtilityFunctions::print("[LuaBridge] Registered Object in wrapper_objects with key: " + String::num_int64((int64_t)ud));
+
+		UtilityFunctions::print("[LuaBridge] Getting metatable...");
+		luaL_getmetatable(L, "GodotObject");
+		if (!lua_isnil(L, -1)) {
+			lua_setmetatable(L, -2);
+			UtilityFunctions::print("[LuaBridge] Metatable set successfully");
+		} else {
+			lua_pop(L, 1);
+			UtilityFunctions::print("Warning: GodotObject metatable not found for Object*");
+		}
+
+		UtilityFunctions::print("[LuaBridge] Wrapped Object: " + obj->get_class() + ", obj ptr: " + String::num_int64((int64_t)obj));
+	}
+	
+	UtilityFunctions::print("[LuaBridge] push_godot_object_as_userdata COMPLETED");
+}
+
+Array LuaBridge::lua_to_variant_array(lua_State* L, int start) {
+	Array args;
+	int num_args = lua_gettop(L);
+	
+	UtilityFunctions::print("[LuaBridge] lua_to_variant_array called with " + String::num_int64(num_args) + " arguments");
+	
+	// Debug: Check what type the first argument is
+	if (num_args >= 1) {
+		int type = lua_type(L, 1);
+		const char* type_name = lua_typename(L, type);
+		UtilityFunctions::print("[LuaBridge] First argument type: " + String(type_name));
+		UtilityFunctions::print("[LuaBridge] Is table check: " + String(lua_istable(L, 1) ? "true" : "false"));
+	}
+	
+	// Check if we have exactly one argument and it's a table
+	if (num_args == 1 && lua_istable(L, 1)) {
+		// Convert the Lua table to a Godot Dictionary and pass it as a single argument
+		Variant dict = lua_to_godot(L, 1);
+		args.append(dict);
+		UtilityFunctions::print("[LuaBridge] Converting Lua table to Dictionary argument");
+		UtilityFunctions::print("[LuaBridge] Dictionary type: " + String::num_int64(dict.get_type()));
+		if (dict.get_type() == Variant::DICTIONARY) {
+			Dictionary d = dict;
+			UtilityFunctions::print("[LuaBridge] Dictionary has " + String::num_int64(d.size()) + " keys");
+		}
+	} else {
+		// Original behavior: convert all arguments individually
+		UtilityFunctions::print("[LuaBridge] Using original behavior - converting arguments individually");
+		for (int i = start; i <= num_args; ++i) {
+			args.append(lua_to_godot(L, i));
+		}
+	}
+	return args;
+}
+
+Variant LuaBridge::lua_to_variant(lua_State* L, int index) {
+	switch (lua_type(L, index)) {
+		case LUA_TSTRING:
+			return String(lua_tostring(L, index));
+		case LUA_TNUMBER:
+			return lua_tonumber(L, index);
+		case LUA_TBOOLEAN:
+			return lua_toboolean(L, index);
+		case LUA_TUSERDATA: {
+			void* userdata_ptr = lua_touserdata(L, index);
+			Variant wrapper_key = Variant((int64_t)userdata_ptr);
+			return wrapper_key;
+		}
+		default:
+			return Variant();  // nil or unsupported
+	}
+}
+
+void LuaBridge::push_variant_to_lua(lua_State* L, const Variant& value) {
+	switch (value.get_type()) {
+		case Variant::BOOL:
+			lua_pushboolean(L, bool(value));
+			break;
+		case Variant::INT:
+			lua_pushinteger(L, int64_t(value));
+			break;
+		case Variant::FLOAT:
+			lua_pushnumber(L, double(value));
+			break;
+		case Variant::STRING:
+			lua_pushstring(L, String(value).utf8().get_data());
+			break;
+		case Variant::DICTIONARY: {
+			Dictionary dict = value;
+			lua_newtable(L);
+			
+			// Get all keys and values
+			Array keys = dict.keys();
+			Array values = dict.values();
+			
+			for (int i = 0; i < keys.size(); i++) {
+				Variant key = keys[i];
+				Variant val = values[i];
+				
+				// Push the key
+				push_variant_to_lua(L, key);
+				
+				// Push the value
+				push_variant_to_lua(L, val);
+				
+				// Set the key-value pair in the table
+				lua_settable(L, -3);
+			}
+			break;
+		}
+		case Variant::ARRAY: {
+			Array arr = value;
+			lua_newtable(L);
+			for (int i = 0; i < arr.size(); i++) {
+				// Lua arrays are 1-indexed
+				lua_pushinteger(L, i + 1);
+				push_variant_to_lua(L, arr[i]);
+				lua_settable(L, -3);
+			}
+			break;
+		}
+		case Variant::OBJECT: {
+			Object *obj = Object::cast_to<Object>(value);
+			if (obj) {
+				push_godot_object_as_userdata(L, obj);
+			} else {
+				lua_pushnil(L);
+			}
+			break;
+		}
+		default:
+			lua_pushnil(L);
+	}
+} 

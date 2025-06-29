@@ -3,7 +3,7 @@ extends Control
 var output_buffer: String = ""
 
 func _ready():
-	print("=== Main Scene Starting ===")
+	#print("=== Main Scene Starting ===")
 	
 	# Fix text field size policies
 	$VBoxContainer/ScrollContainer/MainContent/OutputTextEdit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -12,18 +12,18 @@ func _ready():
 	$VBoxContainer/ScrollContainer/MainContent/ModInfoTextEdit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	
 	# Test if TestAutoload is accessible
-	print("Testing TestAutoload accessibility...")
+	#print("Testing TestAutoload accessibility...")
 	if Engine.has_singleton("TestAutoload"):
-		print("✓ TestAutoload singleton found via Engine.has_singleton")
+		#print("✓ TestAutoload singleton found via Engine.has_singleton")
 	else:
-		print("✗ TestAutoload singleton NOT found via Engine.has_singleton")
+		#print("✗ TestAutoload singleton NOT found via Engine.has_singleton")
 	
 	# Test the engine-registered TestAutoload singleton
-	print("Testing engine-registered TestAutoload singleton...")
+	#print("Testing engine-registered TestAutoload singleton...")
 	test_engine_autoload()
 	
 	# Initialize Lua bridge for testing
-	print("Initializing Lua bridge...")
+	#print("Initializing Lua bridge...")
 	initialize_lua_bridge()
 	
 	# Test basic LuaBridge functionality
@@ -32,7 +32,7 @@ func _ready():
 	# Load mods automatically (now that JSON parsing is fixed)
 	await get_tree().process_frame
 	await get_tree().process_frame  # Wait for 2 frames to ensure everything is initialized
-	print("Loading mods automatically...")
+	#print("Loading mods automatically...")
 	load_mods_automatically()
 	
 	# Test autoload singleton manipulation directly through Lua
@@ -44,19 +44,19 @@ func _ready():
 	# Test autoload access from Lua bridge
 	test_autoload_from_lua_bridge()
 	
-	print("=== Main Scene Ready ===")
+	#print("=== Main Scene Ready ===")
 
 func test_engine_autoload():
 	# Test the engine-registered singleton
-	print("Testing engine-registered TestAutoload singleton...")
+	#print("Testing engine-registered TestAutoload singleton...")
 	
 	# Access the singleton through the engine
 	var test_autoload = TestAutoload
-	print("✓ Engine-registered TestAutoload singleton found!")
+	#print("✓ Engine-registered TestAutoload singleton found!")
 	
 	# Test various methods
 	var player_info = TestAutoload.get_player_info()
-	print("Initial player info: " + str(player_info))
+	#print("Initial player info: " + str(player_info))
 	
 	# Test setting player name
 	TestAutoload.set_player_name("EnginePlayer")
@@ -69,78 +69,78 @@ func test_engine_autoload():
 	
 	# Get updated info
 	var updated_info = TestAutoload.get_player_info()
-	print("Updated player info: " + str(updated_info))
+	#print("Updated player info: " + str(updated_info))
 	
 	# Test utility methods
 	var random_num = TestAutoload.get_random_number(1, 100)
-	print("Random number: " + str(random_num))
+	#print("Random number: " + str(random_num))
 	
 	var damage = TestAutoload.calculate_damage(75.0, 2.0, 0.3)
-	print("Damage calculation: " + str(damage))
+	#print("Damage calculation: " + str(damage))
 	
 	# Stop and reset
 	TestAutoload.stop_game()
 	TestAutoload.reset_game()
 	
 	var final_info = TestAutoload.get_player_info()
-	print("Final player info: " + str(final_info))
+	#print("Final player info: " + str(final_info))
 	
-	print("✓ All engine-registered autoload singleton methods tested successfully!")
+	#print("✓ All engine-registered autoload singleton methods tested successfully!")
 
 func initialize_lua_bridge():
 	# Use the LuaBridgeManager singleton instead of creating our own instance
 	if LuaBridgeManager.is_bridge_ready():
-		print("✓ Lua Bridge already initialized!")
+		#print("✓ Lua Bridge already initialized!")
 	else:
-		print("Initializing Lua Bridge through manager...")
+		#print("Initializing Lua Bridge through manager...")
 		LuaBridgeManager.initialize_bridge()
-		print("✓ Lua Bridge initialized successfully!")
+		#print("✓ Lua Bridge initialized successfully!")
 
 func test_basic_lua_bridge():
-	print("Testing basic LuaBridge functionality...")
+	#print("Testing basic LuaBridge functionality...")
 	
 	if not LuaBridgeManager.is_bridge_ready():
-		print("✗ LuaBridge not ready for testing!")
+		#print("✗ LuaBridge not ready for testing!")
 		return
 	
 	# Test basic Lua execution
-	print("Testing Lua code execution...")
-	var result = LuaBridgeManager.execute_lua("print('Hello from Lua!'); _return_value = 'Test successful'")
-	print("Lua execution result: " + str(result))
+	#print("Testing Lua code execution...")
+	var result = LuaBridgeManager.execute_lua("#print('Hello from Lua!'); _return_value = 'Test successful'")
+	#print("Lua execution result: " + str(result))
 	
 	# Test setting and getting globals
-	print("Testing global variable access...")
+	#print("Testing global variable access...")
 	LuaBridgeManager.set_global("test_var", 42)
 	var test_value = LuaBridgeManager.get_global("test_var")
-	print("Global variable test: " + str(test_value))
+	#print("Global variable test: " + str(test_value))
 	
 	# Test function calling
-	print("Testing function calling...")
+	#print("Testing function calling...")
 	LuaBridgeManager.execute_lua("function test_func(x) return x * 2 end")
 	var func_result = LuaBridgeManager.call_function("test_func", [21])
-	print("Function call result: " + str(func_result))
+	#print("Function call result: " + str(func_result))
 	
-	print("✓ Basic LuaBridge functionality tested successfully!")
+	#print("✓ Basic LuaBridge functionality tested successfully!")
 
 func test_autoload_manipulation_direct():
-	print("Testing autoload singleton manipulation directly through Lua...")
+	#print("Testing autoload singleton manipulation directly through Lua...")
 	
 	if not LuaBridgeManager.is_bridge_ready():
-		print("✗ LuaBridge not ready for autoload manipulation!")
+		#print("✗ LuaBridge not ready for autoload manipulation!")
 		return
 	
 	# Get the TestAutoload singleton through the bridge
 	var test_autoload = LuaBridgeManager.get_autoload_singleton("TestAutoload")
 	if not test_autoload:
-		print("✗ Could not get TestAutoload singleton!")
+		#print("✗ Could not get TestAutoload singleton!")
 		return
 	
-	print("✓ Got TestAutoload singleton: " + str(test_autoload))
+	#print("✓ Got TestAutoload singleton: " + str(test_autoload))
 	
 	# Test calling methods on the singleton
 	var args = Array()
 	var player_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", args)
-	print("Initial player info from Lua: " + str(player_info))
+	#print("Initial player info from Lua: " + str(player_info))
 	
 	# Test setting player name
 	var set_name_args = Array()
@@ -154,58 +154,58 @@ func test_autoload_manipulation_direct():
 	
 	# Get updated info
 	var updated_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", args)
-	print("Updated player info from Lua: " + str(updated_info))
+	#print("Updated player info from Lua: " + str(updated_info))
 	
 	# Test utility methods
 	var random_args = Array()
 	random_args.append(1)
 	random_args.append(100)
 	var random_num = LuaBridgeManager.safe_call_method(test_autoload, "get_random_number", random_args)
-	print("Random number from Lua: " + str(random_num))
+	#print("Random number from Lua: " + str(random_num))
 	
 	var damage_args = Array()
 	damage_args.append(50.0)
 	damage_args.append(2.0)
 	damage_args.append(0.1)
 	var damage = LuaBridgeManager.safe_call_method(test_autoload, "calculate_damage", damage_args)
-	print("Damage calculation from Lua: " + str(damage))
+	#print("Damage calculation from Lua: " + str(damage))
 	
-	print("✓ Autoload manipulation test completed successfully!")
+	#print("✓ Autoload manipulation test completed successfully!")
 
 func test_step_by_step_mod_loading():
 	"""
 	Test step-by-step mod loading to isolate crash
 	"""
 	if not LuaBridgeManager.is_bridge_ready():
-		print("✗ Lua bridge not ready for mod loading!")
+		#print("✗ Lua bridge not ready for mod loading!")
 		append_output("Lua bridge not ready for mod loading!")
 		return
 	
-	print("=== Testing Simple Mod Loading ===")
+	#print("=== Testing Simple Mod Loading ===")
 	append_output("=== Testing Simple Mod Loading ===")
 	
 	# Test 1: Check if simple mod files exist
-	print("Test 1: Checking if simple mod files exist...")
+	#print("Test 1: Checking if simple mod files exist...")
 	append_output("Test 1: Checking if simple mod files exist...")
 	
 	var simple_json_exists = FileAccess.file_exists("res://mods/simple_test_mod.json")
 	var simple_lua_exists = FileAccess.file_exists("res://mods/simple_test.lua")
 	
-	print("Simple JSON exists: " + str(simple_json_exists))
-	print("Simple Lua exists: " + str(simple_lua_exists))
+	#print("Simple JSON exists: " + str(simple_json_exists))
+	#print("Simple Lua exists: " + str(simple_lua_exists))
 	append_output("Simple JSON exists: " + str(simple_json_exists))
 	append_output("Simple Lua exists: " + str(simple_lua_exists))
 	
 	if not simple_json_exists:
-		print("✗ Simple mod JSON not found!")
+		#print("✗ Simple mod JSON not found!")
 		append_output("Simple mod JSON not found!")
 		return
 	
-	print("✓ Simple mod JSON found")
+	#print("✓ Simple mod JSON found")
 	append_output("Simple mod JSON found")
 	
 	# Test 2: Create a mod JSON without entry script to test JSON parsing only
-	print("Test 2: Testing JSON parsing without entry script...")
+	#print("Test 2: Testing JSON parsing without entry script...")
 	append_output("Test 2: Testing JSON parsing without entry script...")
 	
 	# Create a temporary JSON file without entry script
@@ -218,58 +218,58 @@ func test_step_by_step_mod_loading():
 	if temp_file:
 		temp_file.store_string(JSON.stringify(temp_json))
 		temp_file.close()
-		print("✓ Created temporary test JSON")
+		#print("✓ Created temporary test JSON")
 		append_output("Created temporary test JSON")
 		
 		# Try to load the temporary JSON
 		var temp_result = LuaBridgeManager.load_mod_from_json("res://mods/temp_test.json")
-		print("Temporary JSON loading result: " + str(temp_result))
+		#print("Temporary JSON loading result: " + str(temp_result))
 		append_output("Temporary JSON loading result: " + str(temp_result))
 		
 		# Clean up
 		DirAccess.remove_absolute("res://mods/temp_test.json")
 	else:
-		print("✗ Could not create temporary test JSON")
+		#print("✗ Could not create temporary test JSON")
 		append_output("Could not create temporary test JSON")
 	
 	# Test 3: Try to load just the simple mod JSON (this will crash if file loading is the issue)
 	if simple_lua_exists:
-		print("Test 3: Loading simple mod JSON with entry script...")
+		#print("Test 3: Loading simple mod JSON with entry script...")
 		append_output("Test 3: Loading simple mod JSON with entry script...")
 		
 		var simple_result = LuaBridgeManager.load_mod_from_json("res://mods/simple_test_mod.json")
-		print("Simple mod JSON loading result: " + str(simple_result))
+		#print("Simple mod JSON loading result: " + str(simple_result))
 		append_output("Simple mod JSON loading result: " + str(simple_result))
 		
 		if simple_result:
-			print("✓ Simple mod loaded successfully!")
+			#print("✓ Simple mod loaded successfully!")
 			append_output("Simple mod loaded successfully!")
 			
 			# Show what mods are available
 			var all_mod_info = LuaBridgeManager.get_all_mod_info()
-			print("Available mods: " + str(all_mod_info))
+			#print("Available mods: " + str(all_mod_info))
 			append_output("Available mods: " + str(all_mod_info))
 		else:
-			print("✗ Simple mod loading failed!")
+			#print("✗ Simple mod loading failed!")
 			append_output("Simple mod loading failed!")
 	
-	print("=== Simple Mod Loading Test Complete ===")
+	#print("=== Simple Mod Loading Test Complete ===")
 	append_output("=== Simple Mod Loading Test Complete ===")
 
 func test_autoload_from_lua_bridge():
-	print("Testing autoload singleton access from Lua bridge...")
+	#print("Testing autoload singleton access from Lua bridge...")
 
 	var test_autoload = LuaBridgeManager.get_autoload_singleton("TestAutoload")
-	print("test_autoload type: ", typeof(test_autoload), " is_wrapper: ", LuaBridgeManager.is_wrapper(test_autoload))
+	#print("test_autoload type: ", typeof(test_autoload), " is_wrapper: ", LuaBridgeManager.is_wrapper(test_autoload))
 	if test_autoload and not LuaBridgeManager.is_wrapper(test_autoload):
 		test_autoload = LuaBridgeManager.create_wrapper(test_autoload, "Node") # or use the actual class name if known
 
 	if test_autoload and LuaBridgeManager.is_wrapper(test_autoload):
-		print("✓ TestAutoload singleton accessible from Lua bridge!")
+		#print("✓ TestAutoload singleton accessible from Lua bridge!")
 
 		var args = Array()
 		var player_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", args)
-		print("Player info from Lua bridge: " + str(player_info))
+		#print("Player info from Lua bridge: " + str(player_info))
 
 		var set_name_args = Array()
 		set_name_args.append("LuaPlayer")
@@ -280,32 +280,32 @@ func test_autoload_from_lua_bridge():
 		LuaBridgeManager.safe_call_method(test_autoload, "add_score", add_score_args)
 
 		var updated_info = LuaBridgeManager.safe_call_method(test_autoload, "get_player_info", args)
-		print("Updated player info from Lua bridge: " + str(updated_info))
+		#print("Updated player info from Lua bridge: " + str(updated_info))
 
-		print("✓ All Lua bridge autoload singleton methods tested successfully!")
+		#print("✓ All Lua bridge autoload singleton methods tested successfully!")
 	else:
-		print("✗ TestAutoload singleton not accessible from Lua bridge")
+		#print("✗ TestAutoload singleton not accessible from Lua bridge")
 
 func load_mods_automatically():
 	"""
 	Automatically load mods from the mods directory on startup.
 	"""
 	if not LuaBridgeManager.is_bridge_ready():
-		print("✗ Lua bridge not ready for mod loading!")
+		#print("✗ Lua bridge not ready for mod loading!")
 		append_output("Lua bridge not ready for mod loading!")
 		return
 	
-	print("Loading mods from res://mods...")
+	#print("Loading mods from res://mods...")
 	append_output("Loading mods from res://mods...")
 	
 	# Check if the mods directory exists
 	var dir = DirAccess.open("res://mods")
 	if not dir:
-		print("✗ Mods directory not found!")
+		#print("✗ Mods directory not found!")
 		append_output("Mods directory not found!")
 		return
 	
-	print("✓ Mods directory found")
+	#print("✓ Mods directory found")
 	append_output("Mods directory found")
 	
 	# List contents of mods directory
@@ -314,29 +314,29 @@ func load_mods_automatically():
 	var file_count = 0
 	while file_name != "":
 		if file_name != "." and file_name != "..":
-			print("Found: " + file_name + " (dir: " + str(dir.current_is_dir()) + ")")
+			#print("Found: " + file_name + " (dir: " + str(dir.current_is_dir()) + ")")
 			append_output("Found: " + file_name + " (dir: " + str(dir.current_is_dir()) + ")")
 			file_count += 1
 		file_name = dir.get_next()
 	dir.list_dir_end()
 	
-	print("Total files/dirs in mods: " + str(file_count))
+	#print("Total files/dirs in mods: " + str(file_count))
 	append_output("Total files/dirs in mods: " + str(file_count))
 	
 	# Try to load mods
-	print("Attempting to load mods...")
+	#print("Attempting to load mods...")
 	append_output("Attempting to load mods...")
 	var result = LuaBridgeManager.load_mods_from_directory("res://mods")
 	
 	if result:
-		print("✓ Mods loaded successfully!")
+		#print("✓ Mods loaded successfully!")
 		append_output("Mods loaded successfully!")
 		# Show what mods were loaded
 		var all_mod_info = LuaBridgeManager.get_all_mod_info()
-		print("Loaded mods: " + str(all_mod_info))
+		#print("Loaded mods: " + str(all_mod_info))
 		append_output("Loaded mods: " + str(all_mod_info))
 	else:
-		print("✗ Failed to load mods!")
+		#print("✗ Failed to load mods!")
 		append_output("Failed to load mods!")
 
 # Mod Management Button Handlers
@@ -426,7 +426,7 @@ func _on_ExecuteStringButton_pressed():
 		append_output("Bridge object: " + str(bridge))
 		append_output("Bridge has exec_string method: " + str(bridge.has_method("exec_string")))
 		
-		var result = LuaBridgeManager.execute_lua("print('Hello from Lua!'); _return_value = 'Lua executed successfully'")
+		var result = LuaBridgeManager.execute_lua("#print('Hello from Lua!'); _return_value = 'Lua executed successfully'")
 		append_output("Lua execution result: " + str(result))
 	else:
 		append_output("Lua bridge is not ready!")
@@ -435,7 +435,7 @@ func _on_ExecuteStringButton_pressed():
 		var init_result = LuaBridgeManager.initialize_bridge()
 		append_output("Initialization result: " + str(init_result))
 		if init_result:
-			var result = LuaBridgeManager.execute_lua("print('Hello from Lua!'); _return_value = 'Lua executed successfully'")
+			var result = LuaBridgeManager.execute_lua("#print('Hello from Lua!'); _return_value = 'Lua executed successfully'")
 			append_output("Lua execution result after init: " + str(result))
 
 func _on_CallFunctionButton_pressed():

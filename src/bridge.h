@@ -15,68 +15,103 @@
 #include <godot_cpp/classes/ref.hpp>
 #include <godot_cpp/classes/resource_loader.hpp>
 #include <godot_cpp/classes/packed_scene.hpp>
+#include <godot_cpp/classes/script.hpp>
 #include <map>
 #include <vector>
 
-extern "C" {
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
-}
+// Forward declarations
+struct lua_State;
 
 namespace godot {
 
-class LuaBridge;
+class SceneTree;
+class Engine;
 
-// Wrapper structure for Godot objects in Lua
-struct GodotObjectWrapper {
-    Object* object;
-    String class_name;
-    bool is_valid;
-    
-    GodotObjectWrapper(Object* obj, String cls_name) : object(obj), class_name(cls_name), is_valid(obj != nullptr) {}
-};
+class LuaBridge;
 
 class LuaBridge : public RefCounted {
     GDCLASS(LuaBridge, RefCounted)
 
 private:
     lua_State* L = nullptr;
-    Array loaded_mods;
     bool sandboxed = true;
+    String last_error = "";
     
-    // Mod management
-    Dictionary mod_metadata;  // mod_name -> mod_info
-    Array enabled_mods;       // list of enabled mod names
+    // Registered Godot functions
+    std::map<String, Callable> registered_functions;
 
     // Event bus
     std::map<String, std::vector<String>> event_subscribers;
 
-    // Coroutine support
-    std::map<String, lua_State*> active_coroutines;
+    // Mod management
+    std::map<String, Dictionary> loaded_mods;
+    std::map<String, bool> mod_enabled_status;
 
-    // Registered Godot functions
-    std::map<String, Callable> registered_functions;
+    // Lifecycle hooks
+    bool lifecycle_initialized = false;
+    bool lifecycle_ready = false;
+    float update_delta = 0.0f;
 
-    // Custom require handler
+    // Coroutines
+    std::map<String, bool> coroutine_active;
+
+    // Object wrappers
+    std::map<Variant, String> object_wrappers;
+    mutable std::map<Variant, Variant> wrapper_objects;
+
+    // Static Lua callback functions
     static int lua_require_mod(lua_State* L);
-    void setup_require_handler();
-    // Stack trace helper
-    String get_lua_stack_trace();
-    
-    // Godot function call handler
+    static int lua_class_constructor(lua_State* L);
     static int lua_call_godot_function(lua_State* L);
+    static int godot_object_index(lua_State* L);
+    static int lua_godot_object_newindex(lua_State* L);
+    static int lua_godot_object_tostring(lua_State* L);
+    static int lua_godot_object_gc(lua_State* L);
+    
+    // Setup functions
+    void setup_require_handler();
+    void setup_game_api();
+    void setup_safe_libraries();
+    void setup_godot_object_metatable();
+    void setup_safe_environment();
+    
+    // Class exposure
+    void expose_classes_to_lua();
+    void expose_class_to_lua(String class_name);
+    
+    // Data conversion helpers
+    void godot_to_lua(lua_State* L, const Variant& value);
+    Variant lua_to_godot(lua_State* L, int index) const;
+    static Variant lua_to_variant(lua_State* L, int index);
+    void push_variant_to_lua(lua_State* L, const Variant& value);
+    Array lua_to_variant_array(lua_State* L, int start = 1);
+    
+    // Object wrapping
+    void push_godot_object_as_userdata(lua_State* L, Object* obj);
+    
+    // Utility functions
+    String get_lua_error();
+    bool call_lua_function(String func_name, Array args);
 
 protected:
     static void _bind_methods();
 
 public:
+    // Signals
+    /**
+     * Emitted when a Lua error occurs.
+     * @param error_message The error message.
+     * @param error_type The type of error (syntax, runtime, etc.).
+     * @param file_path The file path where the error occurred (if applicable).
+     */
+    void lua_error_occurred(String error_message, String error_type, String file_path);
+
     /**
      * Constructs a new LuaBridge and initializes the Lua state.
      */
     LuaBridge();
     /**
-     * Destroys the LuaBridge and cleans up the Lua state and coroutines.
+     * Destroys the LuaBridge and cleans up the Lua state.
      */
     ~LuaBridge();
 
@@ -88,22 +123,13 @@ public:
      */
     Variant exec_string(String code);
     /**
-     * Executes a Lua script file.
-     * @param path The path to the Lua file.
-     */
-    void exec_file(String path);
-    /**
-     * Loads a Lua script file into the Lua state.
+     * Loads and executes a Lua script file.
      * @param path The path to the Lua file.
      * @return True if loaded successfully, false otherwise.
      */
     bool load_file(String path);
     /**
-     * Reloads the Lua state, reinitializing the environment.
-     */
-    void reload();
-    /**
-     * Unloads the Lua state and all loaded mods.
+     * Unloads the Lua state.
      */
     void unload();
 
@@ -136,196 +162,7 @@ public:
      */
     void register_function(String name, Callable cb);
 
-    // Type checking and validation
-    /**
-     * Checks if a Variant is a Godot Object of the given class.
-     * @param obj The object to check.
-     * @param class_name The class name.
-     * @return True if obj is of the class, false otherwise.
-     */
-    bool is_instance(Variant obj, String class_name);
-    /**
-     * Gets the class name of a Godot Object Variant.
-     * @param obj The object.
-     * @return The class name as a string.
-     */
-    String get_class(Variant obj);
-    /**
-     * Validates arguments for a Lua function call.
-     * @param func_name The Lua function name.
-     * @param args The arguments to check.
-     * @return True if valid, false otherwise.
-     */
-    bool validate_function_args(String func_name, Array args);
-
-    // Safe casting wrappers
-    /**
-     * Creates a safe wrapper for a Godot Object for use in Lua.
-     * @param obj The object to wrap.
-     * @param class_name The class name to check.
-     * @return A wrapper dictionary, or Variant() on error.
-     */
-    Variant create_wrapper(Variant obj, String class_name) const;
-    /**
-     * Checks if a Variant is a wrapper created by create_wrapper().
-     * @param obj The object to check.
-     * @return True if it is a wrapper, false otherwise.
-     */
-    bool is_wrapper(Variant obj) const;
-    /**
-     * Unwraps a wrapper to get the original Godot Object.
-     * @param wrapper The wrapper.
-     * @return The original object, or Variant() on error.
-     */
-    Variant unwrap_object(Variant wrapper) const;
-    /**
-     * Gets the class name stored in a wrapper.
-     * @param wrapper The wrapper.
-     * @return The class name as a string.
-     */
-    String get_wrapper_class(Variant wrapper) const;
-    /**
-     * Checks if a wrapper is still valid (object not freed).
-     * @param wrapper The wrapper.
-     * @return True if valid, false otherwise.
-     */
-    bool is_wrapper_valid(Variant wrapper) const;
-    /**
-     * Safely calls a method on a wrapped object.
-     * @param wrapper The wrapper.
-     * @param method_name The method to call.
-     * @param args The arguments to pass.
-     * @return The return value, or Variant() on error.
-     */
-    Variant safe_call_method(Variant wrapper, String method_name, Array args);
-
-    // Mod management
-    /**
-     * Loads all Lua scripts from a directory as mods.
-     * @param mod_dir The directory path.
-     * @return True if successful, false otherwise.
-     */
-    bool load_script_from_directory(String mod_dir);
-    /**
-     * Calls a Lua event function with arguments.
-     * @param event_name The event function name.
-     * @param args The arguments to pass.
-     * @return True if the function was called, false otherwise.
-     */
-    bool call_event(String event_name, Array args);
-    /**
-     * Lists all loaded mods.
-     * @return An array of mod names.
-     */
-    Array list_loaded_mods() const;
-    /**
-     * Unloads a mod by name.
-     * @param mod_name The mod name.
-     */
-    void unload_mod(String mod_name);
-    
-    // JSON mod management
-    /**
-     * Loads a mod from a JSON metadata file.
-     * @param mod_json_path The path to the mod.json file.
-     * @return True if loaded successfully, false otherwise.
-     */
-    bool load_mod_from_json(String mod_json_path);
-    /**
-     * Loads all mods from a directory containing mod.json files.
-     * @param mods_dir The directory path.
-     * @return True if successful, false otherwise.
-     */
-    bool load_mods_from_directory(String mods_dir);
-    /**
-     * Gets metadata for a mod by name.
-     * @param mod_name The mod name.
-     * @return A dictionary of mod info.
-     */
-    Dictionary get_mod_info(String mod_name) const;
-    /**
-     * Gets metadata for all loaded mods.
-     * @return An array of mod info dictionaries.
-     */
-    Array get_all_mod_info() const;
-    /**
-     * Checks if a mod is enabled.
-     * @param mod_name The mod name.
-     * @return True if enabled, false otherwise.
-     */
-    bool is_mod_enabled(String mod_name) const;
-    /**
-     * Enables a mod by name.
-     * @param mod_name The mod name.
-     */
-    void enable_mod(String mod_name);
-    /**
-     * Disables a mod by name.
-     * @param mod_name The mod name.
-     */
-    void disable_mod(String mod_name);
-
-    // Lifecycle hooks
-    /**
-     * Calls the on_init() hook in all enabled mods.
-     */
-    void call_on_init();
-    /**
-     * Calls the on_ready() hook in all enabled mods.
-     */
-    void call_on_ready();
-    /**
-     * Calls the on_update(delta) hook in all enabled mods.
-     * @param delta The frame delta time.
-     */
-    void call_on_update(double delta);
-    /**
-     * Calls the on_exit() hook in all enabled mods.
-     */
-    void call_on_exit();
-
-    // Security & sandboxing
-    /**
-     * Enables or disables Lua sandboxing.
-     * @param enabled True to enable, false to disable.
-     */
-    void set_sandboxed(bool enabled);
-    /**
-     * Checks if Lua sandboxing is enabled.
-     * @return True if sandboxed, false otherwise.
-     */
-    bool is_sandboxed() const;
-    /**
-     * Sets up a safe Lua environment with restricted libraries.
-     */
-    void setup_safe_environment();
-
-    // Utility methods
-    /**
-     * Prints a message to the Godot output log.
-     * @param message The message to print.
-     */
-    void print_to_console(String message) const;
-    /**
-     * Logs an error message to the Godot output log.
-     * @param error_message The error message.
-     */
-    void log_error(String error_message);
-    /**
-     * Gets the last Lua error message.
-     * @return The last error as a string.
-     */
-    String get_last_error() const;
-
-    // Signal and property access
-    /**
-     * Connects a Godot signal to a Lua function.
-     * @param obj The Godot object emitting the signal.
-     * @param signal_name The signal name.
-     * @param lua_func_name The Lua function to call.
-     * @return True if connected, false otherwise.
-     */
-    bool connect_signal(Variant obj, String signal_name, String lua_func_name);
+    // Object access
     /**
      * Gets a property value from a Godot object.
      * @param obj The object.
@@ -340,6 +177,20 @@ public:
      * @param value The value to set.
      */
     void set_property(Variant obj, String property_name, Variant value);
+    /**
+     * Safely calls a method on a Godot object.
+     * @param obj The object.
+     * @param method_name The method to call.
+     * @param args The arguments to pass.
+     * @return The return value, or Variant() on error.
+     */
+    Variant call_method(Variant obj, String method_name, Array args);
+    /**
+     * Gets the class name of a Godot object.
+     * @param obj The object.
+     * @return The class name as a string, or empty string if invalid.
+     */
+    String get_class(Variant obj) const;
 
     // Scene and resource management
     /**
@@ -388,57 +239,81 @@ public:
      */
     void subscribe_event(String name, String func);
 
-    // Error isolation and mod reloading
+    // Signal connection
     /**
-     * Reloads a mod by name (unloads and re-enables it).
-     * @param mod_name The mod name.
-     * @return True if reloaded, false otherwise.
+     * Connects a Godot signal to a Lua function.
+     * @param obj The Godot object emitting the signal.
+     * @param signal_name The signal name.
+     * @param lua_func_name The Lua function to call.
+     * @return True if connected, false otherwise.
      */
-    bool reload_mod(String mod_name);
+    bool connect_signal(Variant obj, String signal_name, String lua_func_name);
 
-    // Coroutine support
-    /**
-     * Creates a new Lua coroutine for a function and arguments.
-     * @param name The coroutine name.
-     * @param func_name The Lua function name.
-     * @param args The arguments to pass.
-     * @return True if created, false otherwise.
-     */
+    // Security & sandboxing
+    void set_sandboxed(bool enabled);
+    bool is_sandboxed() const;
+
+    // Utility methods
+    void print_to_console(String message) const;
+    void log_error(String error_message);
+    void log_lua_error(String error_message, String error_type, String file_path);
+    String get_last_error() const;
+    void clear_last_error();
+
+    // Mod management
+    bool load_mods_from_directory(String mods_dir);
+    bool load_mod_from_json(String mod_json_path);
+    void enable_mod(String mod_name);
+    void disable_mod(String mod_name);
+    bool reload_mod(String mod_name);
+    Array get_all_mod_info() const;
+    Dictionary get_mod_info(String mod_name) const;
+    bool is_mod_enabled(String mod_name) const;
+
+    // Lifecycle hooks
+    void call_on_init();
+    void call_on_ready();
+    void call_on_update(float delta);
+    void call_on_exit();
+
+    // Coroutines
     bool create_coroutine(String name, String func_name, Array args);
-    /**
-     * Resumes a suspended Lua coroutine with data.
-     * @param name The coroutine name.
-     * @param data The data to pass to the coroutine.
-     * @return True if resumed, false otherwise.
-     */
     bool resume_coroutine(String name, Variant data);
-    /**
-     * Checks if a coroutine is still active.
-     * @param name The coroutine name.
-     * @return True if active, false otherwise.
-     */
     bool is_coroutine_active(String name) const;
-    /**
-     * Cleans up all active coroutines.
-     */
     void cleanup_coroutines();
 
-private:
-    void setup_game_api();
-    void setup_safe_libraries();
-    void setup_unsafe_libraries();
-    String get_lua_error();
-    bool call_lua_function(String func_name, Array args);
-    
-    // Wrapper helper methods
-    void setup_wrapper_metatable();
-    static int lua_wrapper_index(lua_State* L);
-    static int lua_wrapper_newindex(lua_State* L);
-    static int lua_wrapper_tostring(lua_State* L);
-    static int lua_wrapper_gc(lua_State* L);
-    void push_wrapper_to_lua(Object* obj, String class_name);
-    GodotObjectWrapper* get_wrapper_from_lua(int index);
-    bool validate_wrapper_call(GodotObjectWrapper* wrapper, String method_name);
+    // Object wrappers
+    Variant create_wrapper(Variant obj, String class_name);
+    bool is_wrapper(Variant obj) const;
+    Variant unwrap_object(Variant wrapper) const;
+    /**
+     * Gets the class name of a wrapper.
+     * @param wrapper The wrapper object.
+     * @return The class name, or empty string if failed.
+     */
+    String get_wrapper_class(Variant wrapper) const;
+    /**
+     * Checks if a wrapper is valid.
+     * @param wrapper The wrapper object.
+     * @return True if valid, false otherwise.
+     */
+    bool is_wrapper_valid(Variant wrapper) const;
+    /**
+     * Safely calls a method on a wrapper.
+     * @param wrapper The wrapper object.
+     * @param method_name The method name.
+     * @param args The arguments to pass.
+     * @return The result, or null if failed.
+     */
+    Variant safe_call_method(Variant wrapper, String method_name, Array args);
+
+    // Instance checking
+    bool is_instance(Variant obj, String class_name) const;
+
+    // Class instantiation
+    Variant create_instance(String class_name, Array args = Array());
+    bool can_instantiate_class(String class_name) const;
+    Array get_instantiable_classes() const;
 };
 
 // Helper relay for forwarding Godot signals to Lua
