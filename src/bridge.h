@@ -35,7 +35,9 @@ class LuaBridge : public RefCounted {
 private:
     lua_State* L = nullptr;
     bool sandboxed = true;
+    bool verbose_logging = false;  // Control verbose logging
     String last_error = "";
+    bool is_cleaning_up = false;  // Flag to prevent __gc access during cleanup
     
     // Registered Godot functions
     std::map<String, Callable> registered_functions;
@@ -110,6 +112,11 @@ public:
      * Constructs a new LuaBridge and initializes the Lua state.
      */
     LuaBridge();
+    /**
+     * Constructs a new LuaBridge with verbose logging control.
+     * @param verbose Whether to enable verbose logging.
+     */
+    LuaBridge(bool verbose);
     /**
      * Destroys the LuaBridge and cleans up the Lua state.
      */
@@ -314,6 +321,18 @@ public:
     Variant create_instance(String class_name, Array args = Array());
     bool can_instantiate_class(String class_name) const;
     Array get_instantiable_classes() const;
+
+    // Verbose logging control
+    /**
+     * Sets whether verbose logging is enabled.
+     * @param enabled Whether to enable verbose logging.
+     */
+    void set_verbose_logging(bool enabled);
+    /**
+     * Gets whether verbose logging is enabled.
+     * @return True if verbose logging is enabled, false otherwise.
+     */
+    bool is_verbose_logging() const;
 };
 
 // Helper relay for forwarding Godot signals to Lua

@@ -12,7 +12,7 @@ signal bridge_initialized()
 signal bridge_initialization_failed(error: String)
 
 func _ready():
-	#print("LuaBridgeManager: Singleton loaded")
+	print("LuaBridgeManager: Singleton loaded")
 
 func get_bridge():
 	"""
@@ -46,7 +46,7 @@ func initialize_bridge() -> bool:
 			#print("LuaBridgeManager: Creating LuaBridge instance from GDExtension...")
 			lua_bridge = ClassDB.instantiate("LuaBridge")
 			if lua_bridge:
-				#print("LuaBridgeManager: Created LuaBridge instance")
+				print("LuaBridgeManager: Created LuaBridge instance")
 			else:
 				initialization_error = "Failed to instantiate LuaBridge"
 				#print("✗ LuaBridgeManager: " + initialization_error)

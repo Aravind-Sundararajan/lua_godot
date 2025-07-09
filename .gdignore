@@ -1,0 +1,36 @@
+# Ignore build artifacts and compiled files
+*.obj
+*.dll
+*.lib
+*.exp
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.pdb
+*.ilk
+*.map
+*.def
+
+# Ignore build directories
+bin/
+build/
+obj/
+Debug/
+Release/
+x64/
+x86/
+
+# Ignore SCons build artifacts
+.sconsign.dblite
+.sconsign.dblite-journal
+
+# Ignore Lua build artifacts
+lua.lib
+lua_bridge.*
+
+# Ignore temporary files
+*.tmp
+*.temp
+*~ 

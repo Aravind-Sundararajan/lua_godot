@@ -1,0 +1,10 @@
+# Ignore compiled object files
+*.obj
+*.obj.import
+
+# Ignore other build artifacts
+*.o
+*.a
+*.lib
+*.dll
+*.exp 

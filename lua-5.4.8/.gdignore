@@ -1,0 +1,14 @@
+# Ignore compiled object files
+*.obj
+*.obj.import
+*.o
+*.a
+*.lib
+*.dll
+*.exp
+
+# Ignore build artifacts
+*.pdb
+*.ilk
+*.map
+*.def 

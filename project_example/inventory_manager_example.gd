@@ -1,10 +1,5 @@
 extends Node
 
-# Example Inventory Manager Autoload Singleton
-# This demonstrates the kind of functionality you can access from Lua scripts
-
-class_name InventoryManager
-
 # Inventory data
 var items: Dictionary = {}
 var max_items: int = 100

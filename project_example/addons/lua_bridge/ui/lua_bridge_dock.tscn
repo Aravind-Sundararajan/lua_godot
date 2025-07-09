@@ -52,6 +52,10 @@ text = "Load Mods from Directory"
 layout_mode = 2
 text = "Load Specific Mod JSON"
 
+[node name="CopyModsToUserButton" type="Button" parent="VBoxContainer/TabContainer/Mods"]
+layout_mode = 2
+text = "Copy res://mods to user://mods"
+
 [node name="HSeparator2" type="HSeparator" parent="VBoxContainer/TabContainer/Mods"]
 layout_mode = 2
 

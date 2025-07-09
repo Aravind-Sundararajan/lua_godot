@@ -19,6 +19,7 @@ func setup(bridge: LuaBridge = null):
 	# Connect button signals
 	$VBoxContainer/TabContainer/Mods/LoadModsButton.pressed.connect(_on_load_mods_button_pressed)
 	$VBoxContainer/TabContainer/Mods/LoadSpecificModButton.pressed.connect(_on_load_specific_mod_button_pressed)
+	$VBoxContainer/TabContainer/Mods/CopyModsToUserButton.pressed.connect(_on_copy_mods_to_user_button_pressed)
 	$VBoxContainer/TabContainer/Mods/ModControlHBox/EnableModButton.pressed.connect(_on_enable_mod_button_pressed)
 	$VBoxContainer/TabContainer/Mods/ModControlHBox/DisableModButton.pressed.connect(_on_disable_mod_button_pressed)
 	$VBoxContainer/TabContainer/Mods/ModControlHBox/UnloadModButton.pressed.connect(_on_unload_mod_button_pressed)
@@ -127,6 +128,129 @@ func _on_load_specific_mod_button_pressed():
 		update_mod_list()
 	else:
 		append_output("ERROR: Lua bridge not available")
+
+func _on_copy_mods_to_user_button_pressed():
+	append_output("=== COPYING MODS TO USER DIRECTORY ===")
+	append_output("Source: res://mods")
+	append_output("Destination: user://mods")
+	
+	# Check current status
+	var user_dir = DirAccess.open("user://")
+	if user_dir and user_dir.dir_exists("mods"):
+		append_output("ℹ️ user://mods directory already exists")
+		# List existing mods
+		var user_mods_dir = DirAccess.open("user://mods")
+		if user_mods_dir:
+			user_mods_dir.list_dir_begin()
+			var file_name = user_mods_dir.get_next()
+			var existing_mods = []
+			while file_name != "":
+				if file_name != "." and file_name != ".." and user_mods_dir.current_is_dir():
+					existing_mods.append(file_name)
+				file_name = user_mods_dir.get_next()
+			user_mods_dir.list_dir_end()
+			
+			if existing_mods.size() > 0:
+				append_output("Existing mods in user://mods: " + ", ".join(existing_mods))
+			else:
+				append_output("user://mods directory is empty")
+	
+	var source_dir = "res://mods"
+	var dest_dir = "user://mods"
+	
+	# Check if source directory exists
+	var dir = DirAccess.open(source_dir)
+	if not dir:
+		append_output("❌ ERROR: Source directory 'res://mods' does not exist!")
+		return
+	
+	# List source mods
+	dir.list_dir_begin()
+	var file_name = dir.get_next()
+	var source_mods = []
+	while file_name != "":
+		if file_name != "." and file_name != ".." and dir.current_is_dir():
+			source_mods.append(file_name)
+		file_name = dir.get_next()
+	dir.list_dir_end()
+	
+	if source_mods.size() > 0:
+		append_output("Source mods to copy: " + ", ".join(source_mods))
+	else:
+		append_output("⚠️ No mods found in res://mods")
+		return
+	
+	# Create destination directory if it doesn't exist
+	if not user_dir:
+		append_output("❌ ERROR: Cannot access user:// directory!")
+		return
+	
+	if not user_dir.dir_exists("mods"):
+		append_output("Creating user://mods directory...")
+		var create_result = user_dir.make_dir("mods")
+		if create_result != OK:
+			append_output("❌ ERROR: Failed to create user://mods directory!")
+			return
+		append_output("✅ Created user://mods directory")
+	
+	# Copy mods recursively
+	var copy_result = _copy_directory_recursive(source_dir, dest_dir)
+	if copy_result:
+		append_output("✅ Successfully copied all mods to user://mods")
+		append_output("You can now load mods from user://mods for release builds")
+		append_output("Note: Mods in user://mods will take precedence over res://mods")
+	else:
+		append_output("❌ Failed to copy some mods. Check the output above for details.")
+
+func _copy_directory_recursive(source_path: String, dest_path: String) -> bool:
+	"""Copy a directory recursively with progress reporting"""
+	var source_dir = DirAccess.open(source_path)
+	if not source_dir:
+		append_output("❌ Cannot access source directory: " + source_path)
+		return false
+	
+	# Create destination directory
+	var dest_dir = DirAccess.open(dest_path.get_base_dir())
+	if not dest_dir:
+		append_output("❌ Cannot access destination parent directory: " + dest_path.get_base_dir())
+		return false
+	
+	if not dest_dir.dir_exists(dest_path.get_file()):
+		var create_result = dest_dir.make_dir(dest_path.get_file())
+		if create_result != OK:
+			append_output("❌ Failed to create directory: " + dest_path)
+			return false
+	
+	# Copy files
+	source_dir.list_dir_begin()
+	var file_name = source_dir.get_next()
+	var success = true
+	
+	while file_name != "":
+		if file_name == "." or file_name == "..":
+			file_name = source_dir.get_next()
+			continue
+		
+		var source_file = source_path.path_join(file_name)
+		var dest_file = dest_path.path_join(file_name)
+		
+		if source_dir.current_is_dir():
+			# Recursively copy subdirectory
+			append_output("📁 Copying directory: " + file_name)
+			if not _copy_directory_recursive(source_file, dest_file):
+				success = false
+		else:
+			# Copy file
+			append_output("📄 Copying file: " + file_name)
+			var copy_result = source_dir.copy(source_file, dest_file)
+			if copy_result != OK:
+				append_output("❌ Failed to copy file: " + file_name)
+				success = false
+		
+		file_name = source_dir.get_next()
+	
+	source_dir.list_dir_end()
+	return success
 
 func _on_enable_mod_button_pressed():
 	var selected_items = $VBoxContainer/TabContainer/Mods/ModList.get_selected_items()
