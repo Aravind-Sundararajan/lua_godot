@@ -27,14 +27,17 @@ lua_lib = env.StaticLibrary('lua', lua_sources)
 
 # Build the GDExtension shared library
 if env["platform"] == "windows":
+    # Use the correct target-specific godot-cpp library
+    godot_cpp_lib = f"godot-cpp/bin/libgodot-cpp.windows.{env['target']}.x86_64"
+
     library = env.SharedLibrary(
         "lua_bridge",
         source=sources,
-        LIBS=[lua_lib, "godot-cpp/bin/libgodot-cpp.windows.template_debug.x86_64"]
+        LIBS=[lua_lib, godot_cpp_lib]
     )
 
-    # Define the target filename for the addon
-    target_filename = "lua_bridge.windows.template_debug.x86_64.dll"
+    # Define the target filename for the addon based on the target
+    target_filename = f"lua_bridge.windows.{env['target']}.x86_64.dll"
     target_dir = "project_example/addons/lua_bridge/bin/windows"
 
 elif env["platform"] == "macos":
@@ -47,7 +50,7 @@ elif env["platform"] == "macos":
     )
 
     # Define the target filename for the addon
-    target_filename = "lua_bridge.macos.template_debug.framework"
+    target_filename = f"lua_bridge.macos.{env['target']}.framework"
     target_dir = "project_example/addons/lua_bridge/bin/macos"
 
 elif env["platform"] == "ios":
@@ -73,7 +76,7 @@ else:
     )
 
     # Define the target filename for the addon (Linux)
-    target_filename = "lua_bridge.linux.template_debug.x86_64.so"
+    target_filename = f"lua_bridge.linux.{env['target']}.x86_64.so"
     target_dir = "project_example/addons/lua_bridge/bin/linux"
 
 # Function to copy the built library to the addon directory
@@ -97,6 +100,14 @@ def copy_to_addon(target, source, env):
         "platform"] == "windows" else f"lua_bridge{env['SHLIBSUFFIX']}"
     shutil.copy2(built_library, root_target)
     print(f"Copied {built_library} to {root_target}")
+
+    # Copy to main project directory
+    main_project_dir = "../addons/lua_bridge/bin/windows"
+    if env["platform"] == "windows":
+        os.makedirs(main_project_dir, exist_ok=True)
+        main_target_path = os.path.join(main_project_dir, target_filename)
+        shutil.copy2(built_library, main_target_path)
+        print(f"Copied {built_library} to {main_target_path}")
 
 
 # Create a custom target that copies the library after building
